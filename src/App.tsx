@@ -8,7 +8,7 @@ export default function App() {
   const [view, setView] = useState<View>({ kind: 'library' })
 
   if (view.kind === 'reader') {
-    return <Reader bookId={view.bookId} />
+    return <Reader bookId={view.bookId} onClose={() => setView({ kind: 'library' })} />
   }
 
   return <Library onOpen={bookId => setView({ kind: 'reader', bookId })} />

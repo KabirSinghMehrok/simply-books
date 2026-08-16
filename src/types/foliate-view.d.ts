@@ -66,6 +66,10 @@ export interface FoliateView extends HTMLElement {
   init(opts: { lastLocation?: string; showTextStart?: boolean }): Promise<void>
   next(distance?: number): Promise<void>
   prev(distance?: number): Promise<void>
+  /** Respects book direction: next() in RTL books, prev() otherwise. */
+  goLeft(): Promise<void>
+  /** Respects book direction: prev() in RTL books, next() otherwise. */
+  goRight(): Promise<void>
   goTo(target: string | number): Promise<void>
   goToFraction(f: number): Promise<void>
   initTTS(granularity: 'word' | 'sentence', highlight?: (r: Range) => void): Promise<void>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { makeBook, type FoliateView, type Location, type Tts } from 'foliate-js/view.js'
 import 'foliate-js/view.js' // side effect: defines the <foliate-view> custom element
 import { getBook, getProgress, putProgress } from '../library/db'
+import { attachInteractions, type InteractionHandlers } from './interactions'
 import { highlightSpokenRange, injectTheme } from './theme-inject'
 
 const SAVE_DEBOUNCE_MS = 500
@@ -46,9 +47,20 @@ export async function ensureTts(view: FoliateView): Promise<Tts> {
  * built imperatively in an effect, not JSX), wires theme injection and
  * TTS pre-warming to `load`, and debounces `relocate` into IndexedDB.
  */
-export function useFoliate(bookId: string) {
+export function useFoliate(bookId: string, handlers: InteractionHandlers = {}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<FoliateView | null>(null)
+  // `view`'s identity never changes as the reader turns pages -- only its
+  // internal lastLocation mutates -- so anything that needs to redraw on
+  // navigation (the rail) needs this as actual React state instead.
+  const [location, setLocation] = useState<Location | null>(null)
+  // Indirected through a ref so the 'load' listener (created once per
+  // bookId, not per render) always calls the latest handlers instead of
+  // whichever ones existed when that listener was attached.
+  const handlersRef = useRef(handlers)
+  useEffect(() => {
+    handlersRef.current = handlers
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -61,16 +73,24 @@ export function useFoliate(bookId: string) {
       // initTTS is async (dynamic import) and iOS requires the first
       // speak() to happen synchronously inside a user gesture.
       void ensureTts(el)
+      // The section doc is same-origin but a new browsing context, so
+      // clicks/keys/mousemove inside it never bubble to the parent window --
+      // attach navigation and idle-activity handling directly on it.
+      attachInteractions(el, e.detail.doc, {
+        onActivity: () => handlersRef.current.onActivity?.(),
+        onMiddleTap: () => handlersRef.current.onMiddleTap?.(),
+      })
     }) as EventListener)
 
     el.addEventListener('relocate', ((e: CustomEvent<Location>) => {
-      const location = e.detail
+      const loc = e.detail
+      setLocation(loc) // UI (the rail) updates immediately; the DB write below is debounced
       clearTimeout(saveTimer)
       saveTimer = setTimeout(() => {
         void putProgress({
           bookId,
-          cfi: location.cfi,
-          fraction: location.fraction,
+          cfi: loc.cfi,
+          fraction: loc.fraction,
           updatedAt: Date.now(),
         })
       }, SAVE_DEBOUNCE_MS)
@@ -102,8 +122,9 @@ export function useFoliate(bookId: string) {
       el.close()
       el.remove()
       setView(null)
+      setLocation(null)
     }
   }, [bookId])
 
-  return { view, containerRef }
+  return { view, location, containerRef }
 }

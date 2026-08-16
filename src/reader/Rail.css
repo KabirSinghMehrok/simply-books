@@ -1,0 +1,27 @@
+.rail {
+  position: absolute;
+  top: 44px;
+  bottom: 44px;
+  right: 0;
+  width: 8px;
+  cursor: pointer;
+}
+
+.rail::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 3px;
+  margin: 0 auto;
+  background: var(--hairline);
+}
+
+.rail__fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 3px;
+  margin: 0 auto;
+  background: var(--accent);
+}
