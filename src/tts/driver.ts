@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { FoliateView } from 'foliate-js/view.js'
+import type { FoliateView, Tts } from 'foliate-js/view.js'
 import { getSettings, putSettings } from '../library/db'
 import { ensureTts } from '../reader/useFoliate'
 import { parseSSML, type Chunk } from './ssml'
@@ -12,7 +12,18 @@ interface Internal {
   gen: number // trap #4: cancel() fires onend synchronously on the outgoing
   // utterance, so a stale callback must not be allowed to advance the
   // queue a second time -- every callback checks its gen against this.
+  /**
+   * The TTS instance these chunks came from. Mark names are per-block
+   * integers valid only for the instance that emitted them, and a new
+   * section (TOC jump, rail seek) makes ensureTts build a fresh TTS whose
+   * ranges are not populated until it is asked for a block. Handing such an
+   * instance a stale mark throws inside tts.js (`#ranges.get` of undefined),
+   * so the queue is dropped when its owner is no longer the current TTS.
+   */
+  tts: Tts | null
 }
+
+const EMPTY: Internal = { chunks: [], i: 0, gen: 0, tts: null }
 
 let voicesPromise: Promise<SpeechSynthesisVoice[]> | undefined
 
@@ -51,7 +62,7 @@ export function useTtsDriver(view: FoliateView | null) {
   const [voice, setVoiceState] = useState<SpeechSynthesisVoice | null>(null)
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
 
-  const internal = useRef<Internal>({ chunks: [], i: 0, gen: 0 })
+  const internal = useRef<Internal>({ ...EMPTY })
   const rateRef = useRef(1)
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null)
   // Held so Chrome can't GC an in-flight utterance mid-sentence.
@@ -59,7 +70,7 @@ export function useTtsDriver(view: FoliateView | null) {
 
   // A new `view` means a new book: forget the old queue and stop talking.
   useEffect(() => {
-    internal.current = { chunks: [], i: 0, gen: 0 }
+    internal.current = { ...EMPTY }
     setStatus('idle')
     return () => {
       speechSynthesis.cancel()
@@ -88,9 +99,17 @@ export function useTtsDriver(view: FoliateView | null) {
   }, [])
 
   function speakFrom(i: number) {
-    if (!view?.tts) return
-    const tts = view.tts
     const s = internal.current
+    const tts = s.tts
+    if (!view || !tts) return
+    // The reader navigated to another section while this queue was in flight,
+    // so its chunks (and their marks) belong to a document that is no longer
+    // loaded. Drop it rather than speak text that is no longer on screen.
+    if (view.tts !== tts) {
+      internal.current = { ...EMPTY }
+      setStatus('idle')
+      return
+    }
     const chunk = s.chunks[i]
     if (!chunk) return
     s.i = i
@@ -114,13 +133,15 @@ export function useTtsDriver(view: FoliateView | null) {
     setStatus('playing')
   }
 
-  function load(ssml: string | undefined, at: 'first' | 'last' = 'first') {
+  /** `tts` is the instance that produced `ssml` -- see Internal.tts. */
+  function load(tts: Tts, ssml: string | undefined, at: 'first' | 'last' = 'first') {
     if (ssml === undefined) {
       void advanceSection()
       return
     }
     const chunks = parseSSML(ssml)
     internal.current.chunks = chunks
+    internal.current.tts = tts
     speakFrom(at === 'last' ? chunks.length - 1 : 0)
   }
 
@@ -128,12 +149,17 @@ export function useTtsDriver(view: FoliateView | null) {
     if (!view) return
     await view.next()
     const tts = await ensureTts(view)
-    load(tts.start())
+    load(tts, tts.start())
   }
 
   async function play() {
     if (!view) return
-    if (status === 'paused') {
+    const s = internal.current
+    // A queue belonging to a section we have since navigated away from can't
+    // be resumed. Drop it here rather than let speakFrom bail, which would
+    // make the first press of play silently do nothing.
+    if (s.tts && s.tts !== view.tts) internal.current = { ...EMPTY }
+    if (status === 'paused' && internal.current.chunks.length > 0) {
       speakFrom(internal.current.i)
       return
     }
@@ -142,13 +168,20 @@ export function useTtsDriver(view: FoliateView | null) {
     // top of the chapter -- otherwise opening at page 40 and pressing
     // play would read from page 1.
     if (internal.current.chunks.length === 0 && view.lastLocation) {
-      load(tts.from(view.lastLocation.range))
+      load(tts, tts.from(view.lastLocation.range))
     } else {
-      load(tts.resume())
+      load(tts, tts.resume())
     }
   }
 
   function pause() {
+    // Trap #4 again, on the one path the plan's pseudocode left unguarded:
+    // cancel() fires the in-flight utterance's onend synchronously, and that
+    // handler only checks its own generation. Without invalidating it first,
+    // pausing ran nextSentence() -- so the voice carried on to the next
+    // sentence, scrollToAnchor dragged the page after it, and speakFrom set
+    // the status straight back to 'playing'. Pause never actually paused.
+    internal.current.gen++
     speechSynthesis.cancel() // .pause() is unreliable on Android
     setStatus('paused')
   }
@@ -161,7 +194,7 @@ export function useTtsDriver(view: FoliateView | null) {
       return
     }
     const tts = await ensureTts(view)
-    load(tts.next())
+    load(tts, tts.next())
   }
 
   async function prevSentence() {
@@ -172,7 +205,7 @@ export function useTtsDriver(view: FoliateView | null) {
       return
     }
     const tts = await ensureTts(view)
-    load(tts.prev(), 'last')
+    load(tts, tts.prev(), 'last')
   }
 
   // The explicit escape hatch: restarts at the top of whatever page is
@@ -182,7 +215,7 @@ export function useTtsDriver(view: FoliateView | null) {
   async function readThisPage() {
     if (!view?.lastLocation) return
     const tts = await ensureTts(view)
-    load(tts.from(view.lastLocation.range))
+    load(tts, tts.from(view.lastLocation.range))
   }
 
   function setRate(next: number) {

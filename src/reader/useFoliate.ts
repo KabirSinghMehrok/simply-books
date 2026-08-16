@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { makeBook, type FoliateView, type Location, type Tts } from 'foliate-js/view.js'
 import 'foliate-js/view.js' // side effect: defines the <foliate-view> custom element
+import { textWalker } from 'foliate-js/text-walker.js'
 import { getBook, getProgress, putProgress } from '../library/db'
-import { attachInteractions, type InteractionHandlers } from './interactions'
+import { attachClickZones, attachKeys, type InteractionHandlers } from './interactions'
 import { highlightSpokenRange, injectTheme } from './theme-inject'
 
 const SAVE_DEBOUNCE_MS = 500
@@ -20,25 +21,45 @@ function setLayout(view: FoliateView) {
 
 /**
  * Initializes `view.tts` for whatever section is currently loaded, and
- * returns it once ready. initTTS no-ops if the doc hasn't changed, so
- * calling this redundantly (once from the `load` listener below to
- * pre-warm, once from driver.ts after advancing a section) is safe --
- * whichever call gets there first does the real work.
+ * returns it once ready. Re-initializing for the same document would reset
+ * the block cursor back to the top of the chapter, so -- exactly as
+ * view.initTTS does -- this no-ops when the doc is unchanged. That makes it
+ * safe to call redundantly (once from the `load` listener below to pre-warm,
+ * once from driver.ts after advancing a section); whichever gets there first
+ * does the real work.
  *
  * This function exists because `view.next()` resolving does NOT mean
  * `view.tts` has been reinitialized for the new section: the `load`
- * listener's initTTS call is fired-and-forgotten, not awaited by
- * `next()`. Anything that needs `view.tts` to be current for the
- * section it just navigated to must await this instead of assuming so.
+ * listener's call here is fired-and-forgotten, not awaited by `next()`.
+ * Anything needing `view.tts` to be current for the section it just
+ * navigated to must await this instead of assuming so.
+ *
+ * We construct TTS directly rather than calling `view.initTTS()`, which
+ * accepts granularity only and hardcodes `scrollToAnchor(range, true)` as
+ * its highlight callback -- discarding ours. That cost us both the accent
+ * underline and, because `select: true` leaves a live DOM selection on every
+ * spoken sentence, click-to-turn-page inside the book while TTS runs.
  */
 export async function ensureTts(view: FoliateView): Promise<Tts> {
-  await view.initTTS('sentence', range => {
-    highlightSpokenRange(range)
-    // Trap #2: the page follows the voice via scrollToAnchor here,
-    // not view.next() -- one code path for paginated and scrolled.
-    view.renderer.scrollToAnchor(range, false)
-  })
-  return view.tts!
+  const doc = view.renderer.getContents()[0]?.doc
+  if (view.tts && view.tts.doc === doc) return view.tts
+  // tts.js stays dynamic (view.js only pulls it in lazily too); text-walker.js
+  // is statically imported by view.js already, so deferring it buys nothing.
+  const { TTS } = await import('foliate-js/tts.js')
+  view.tts = new TTS(
+    doc,
+    textWalker,
+    range => {
+      highlightSpokenRange(range)
+      // Trap #2: the page follows the voice via scrollToAnchor here, not
+      // view.next() -- one code path for paginated and scrolled. `select`
+      // stays false: the underline is ours to draw, and a real selection
+      // would suppress click-to-turn-page for the whole session.
+      view.renderer.scrollToAnchor(range, false)
+    },
+    'sentence',
+  )
+  return view.tts
 }
 
 /**
@@ -76,10 +97,12 @@ export function useFoliate(bookId: string, handlers: InteractionHandlers = {}) {
       // The section doc is same-origin but a new browsing context, so
       // clicks/keys/mousemove inside it never bubble to the parent window --
       // attach navigation and idle-activity handling directly on it.
-      attachInteractions(el, e.detail.doc, {
+      const forward = {
         onActivity: () => handlersRef.current.onActivity?.(),
         onMiddleTap: () => handlersRef.current.onMiddleTap?.(),
-      })
+      }
+      attachKeys(el, e.detail.doc, forward)
+      attachClickZones(el, e.detail.doc, forward)
     }) as EventListener)
 
     el.addEventListener('relocate', ((e: CustomEvent<Location>) => {

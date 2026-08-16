@@ -62,6 +62,8 @@ export interface Tts {
 }
 export interface Renderer extends HTMLElement {
   scrollToAnchor(target: Range | Element | number, select?: boolean): void
+  /** The loaded section(s) -- one entry in paginated mode, [] before load. */
+  getContents(): { index: number; doc: Document }[]
   destroy(): void
 }
 export interface FoliateView extends HTMLElement {
@@ -80,5 +82,11 @@ export interface FoliateView extends HTMLElement {
   goRight(): Promise<void>
   goTo(target: string | number): Promise<void>
   goToFraction(f: number): Promise<void>
-  initTTS(granularity: 'word' | 'sentence', highlight?: (r: Range) => void): Promise<void>
+  /**
+   * NOTE: takes granularity ONLY. It hardcodes its own highlight callback
+   * (`scrollToAnchor(range, true)`) and ignores further arguments, so it
+   * cannot draw our underline and always leaves a DOM selection behind.
+   * useFoliate's ensureTts builds a TTS directly instead -- do not call this.
+   */
+  initTTS(granularity: 'word' | 'sentence'): Promise<void>
 }

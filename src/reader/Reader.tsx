@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTtsDriver } from '../tts/driver'
 import { Chrome } from './Chrome'
-import { attachInteractions } from './interactions'
+import { attachClickZones, attachKeys } from './interactions'
 import { Rail } from './Rail'
 import { Toc } from './Toc'
 import { useFoliate } from './useFoliate'
@@ -31,18 +31,24 @@ export function Reader({ bookId, onClose }: { bookId: string; onClose: () => voi
   })
   const tts = useTtsDriver(view)
 
-  // Starts the idle countdown once the book is ready, and wires the same
-  // click/key/activity handling to the outer window -- covers focus being
-  // on a chrome control rather than inside the book's iframe. Only `view`
-  // needs to be a dependency: showChrome/setChromeVisible only touch refs
-  // and stable setters, so re-running this on their account isn't needed.
+  // Starts the idle countdown once the book is ready, then wires input for
+  // everything outside the book's iframe. Keys go on the window so paging
+  // still works while a chrome control has focus; click zones go on the book
+  // container only, never the window -- the chrome, rail and TOC are siblings
+  // of it, so scoping the listener is what keeps their clicks from being read
+  // as page turns. Only `view` needs to be a dependency: showChrome and
+  // setChromeVisible only touch refs and stable setters.
   useEffect(() => {
     showChrome()
     if (!view) return
-    return attachInteractions(view, window, {
-      onActivity: showChrome,
-      onMiddleTap: () => setChromeVisible(v => !v),
-    })
+    const handlers = { onActivity: showChrome, onMiddleTap: () => setChromeVisible(v => !v) }
+    const detachKeys = attachKeys(view, window, handlers)
+    const container = containerRef.current
+    const detachClicks = container ? attachClickZones(view, container, handlers) : undefined
+    return () => {
+      detachKeys()
+      detachClicks?.()
+    }
   }, [view])
 
   return (

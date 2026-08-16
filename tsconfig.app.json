@@ -12,7 +12,9 @@
     /* Bundler mode */
     "moduleResolution": "bundler",
     "paths": {
-      "foliate-js/view.js": ["./src/types/foliate-view.d.ts"]
+      "foliate-js/view.js": ["./src/types/foliate-view.d.ts"],
+      "foliate-js/tts.js": ["./src/types/foliate-tts.d.ts"],
+      "foliate-js/text-walker.js": ["./src/types/foliate-text-walker.d.ts"]
     },
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
