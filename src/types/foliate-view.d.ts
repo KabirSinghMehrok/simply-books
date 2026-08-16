@@ -16,13 +16,21 @@
 /** A language map: a plain string, or { [lang]: string } for localized values. */
 export type LangMap = string | Record<string, string>
 export interface Contributor { name: LangMap; sortAs?: LangMap; role?: string[] }
+/**
+ * A contributor at any depth epub.js's `tidy()` (epub.js:136) may leave it:
+ * the full object, or -- once tidy collapses an object whose only key is
+ * `name` -- the bare LangMap. Always read these through meta.ts.
+ */
+export type Contributorish = LangMap | Contributor
 export interface Metadata {
   identifier?: string
   title?: LangMap | null          // NOT a plain string — see trap #3
   subtitle?: string
-  language?: string[]             // an array
-  author?: Contributor[]          // absent when the OPF has no dc:creator
-  publisher?: Contributor[]
+  // `tidy()` collapses every single-element array to the bare element, so
+  // each of these is only really an array when the OPF had 2+ entries.
+  language?: string | string[]
+  author?: Contributorish | Contributorish[]   // absent when the OPF has no dc:creator
+  publisher?: Contributorish | Contributorish[]
   description?: string
   published?: string
 }
