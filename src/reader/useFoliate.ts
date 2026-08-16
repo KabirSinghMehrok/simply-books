@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { makeBook, type FoliateView, type Location, type Tts } from 'foliate-js/view.js'
 import 'foliate-js/view.js' // side effect: defines the <foliate-view> custom element
 import { textWalker } from 'foliate-js/text-walker.js'
-import { getBook, getProgress, putProgress } from '../library/db'
+import { getBook, getProgress, putProgress, type Flow, type SettingsRecord } from '../library/db'
 import { attachClickZones, attachKeys, type InteractionHandlers } from './interactions'
 import { highlightSpokenRange, injectTheme } from './theme-inject'
 
@@ -11,12 +11,20 @@ const SAVE_DEBOUNCE_MS = 500
 // Trap #1: these attributes belong on the renderer, not the view --
 // `view.setAttribute(...)` (what foliate-js's own README shows) is a
 // silent no-op, because View doesn't forward attributes to Paginator.
+//
+// flow/max-column-count are the two the settings panel changes at
+// runtime; paginator.js's attributeChangedCallback re-renders on both, so
+// no re-init is needed to switch layout mid-book.
+export function applyLayout(view: FoliateView, flow: Flow, columns: 1 | 2): void {
+  view.renderer.setAttribute('flow', flow)
+  view.renderer.setAttribute('max-column-count', String(columns))
+}
+
 function setLayout(view: FoliateView) {
-  view.renderer.setAttribute('flow', 'paginated')
-  view.renderer.setAttribute('max-column-count', '2')
   view.renderer.setAttribute('max-inline-size', '720')
   view.renderer.setAttribute('gap', '7')
   view.renderer.setAttribute('margin', '48')
+  applyLayout(view, 'paginated', 2)
 }
 
 /**
@@ -68,7 +76,11 @@ export async function ensureTts(view: FoliateView): Promise<Tts> {
  * built imperatively in an effect, not JSX), wires theme injection and
  * TTS pre-warming to `load`, and debounces `relocate` into IndexedDB.
  */
-export function useFoliate(bookId: string, handlers: InteractionHandlers = {}) {
+export function useFoliate(
+  bookId: string,
+  handlers: InteractionHandlers = {},
+  settings: SettingsRecord | null = null,
+) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<FoliateView | null>(null)
   // `view`'s identity never changes as the reader turns pages -- only its
@@ -148,6 +160,26 @@ export function useFoliate(bookId: string, handlers: InteractionHandlers = {}) {
       setLocation(null)
     }
   }, [bookId])
+
+  // Re-applies the layout settings whenever they change -- setAttribute
+  // alone re-renders the current view live, no re-init needed (see
+  // applyLayout's comment).
+  useEffect(() => {
+    if (!view || !settings) return
+    applyLayout(view, settings.flow, settings.columns)
+  }, [view, settings?.flow, settings?.columns])
+
+  // Re-injects theme/font/scale/line-height into whatever section doc is
+  // currently loaded. `injectTheme` reads the resolved values itself (via
+  // getComputedStyle on the outer root, which useSettings keeps current),
+  // so this effect only needs to know *that* an appearance setting
+  // changed, not what changed -- and only needs to run for the section(s)
+  // already on screen; newly loaded sections pick it up from the `load`
+  // listener above.
+  useEffect(() => {
+    if (!view || !settings) return
+    for (const content of view.renderer.getContents()) injectTheme(content.doc)
+  }, [view, settings?.themeId, settings?.fontFamily, settings?.fontScale, settings?.lineHeight])
 
   return { view, location, containerRef }
 }

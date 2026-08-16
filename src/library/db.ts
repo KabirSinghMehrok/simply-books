@@ -29,9 +29,18 @@ export interface AnnotationRecord {
   createdAt: number
 }
 
+export type ThemeId = 'paper' | 'ink' | 'dusk' | 'slate'
+export type FontFamily = 'theme' | 'literata' | 'source-serif' | 'crimson-pro' | 'atkinson'
+export type Flow = 'paginated' | 'scrolled'
+
 export interface SettingsRecord {
   key: 'app'
-  themeId: string
+  themeId: ThemeId
+  fontFamily: FontFamily
+  fontScale: number
+  lineHeight: number
+  flow: Flow
+  columns: 1 | 2
   ttsRate: number
   ttsVoiceURI: string | null
 }
@@ -46,6 +55,11 @@ interface SimplyBookDB extends DBSchema {
 const DEFAULT_SETTINGS: SettingsRecord = {
   key: 'app',
   themeId: 'paper',
+  fontFamily: 'theme',
+  fontScale: 1,
+  lineHeight: 1.6,
+  flow: 'paginated',
+  columns: 2,
   ttsRate: 1,
   ttsVoiceURI: null,
 }
@@ -99,9 +113,13 @@ export async function putProgress(record: ProgressRecord): Promise<void> {
   await db.put('progress', record)
 }
 
+// Merged rather than returned bare: a settings row written before this
+// schema grew new fields (e.g. a v0 install) would otherwise come back
+// with `fontScale`/`flow`/etc. `undefined` instead of a usable default.
 export async function getSettings(): Promise<SettingsRecord> {
   const db = await getDB()
-  return (await db.get('settings', 'app')) ?? DEFAULT_SETTINGS
+  const stored = await db.get('settings', 'app')
+  return stored ? { ...DEFAULT_SETTINGS, ...stored } : DEFAULT_SETTINGS
 }
 
 export async function putSettings(record: SettingsRecord): Promise<void> {

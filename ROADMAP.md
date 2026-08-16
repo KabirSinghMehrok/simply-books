@@ -1,5 +1,21 @@
 # Roadmap
 
+## Status: v1 Phase A shipped
+
+- Settings panel (top bar gear icon, native HTML Popover API — no
+  dependency): all 4 reading themes now wired to a UI (previously only
+  Paper was reachable), font-family override, font-size scale, line
+  height, and page layout (single-page / two-page spread / scrolled) —
+  every one of these applies live to the book already open, not just on
+  reopen
+- The 3 themes that referenced fonts v0 never downloaded (Source Serif 4,
+  Crimson Pro, Atkinson Hyperlegible) now have those fonts self-hosted,
+  same as Instrument Sans/Literata
+- `SettingsRecord` (`db.ts`) grew `fontFamily`, `fontScale`, `lineHeight`,
+  `flow`, `columns`; `getSettings()` now merges the stored row over
+  defaults so a record written before this schema grew doesn't come back
+  with the new fields `undefined`
+
 ## Status: v0 shipped
 
 Everything below is built, type-checked, and committed:
@@ -149,6 +165,36 @@ it's the only neural option that also runs acceptably on mobile.
 - **Bundle budget:** the initial load is ~75 KB gzipped. foliate-js's
   non-EPUB format parsers (MOBI, FB2, comic book, fixed-layout) are
   separate lazy chunks, only downloaded if a book actually needs them.
+- **React fires child effects before parent effects within one commit —
+  and that broke theme application the first time it was wired up.**
+  `useSettings` (called in `App`, a parent) writes the active theme's
+  resolved colors/fonts onto `<html>` as CSS custom properties;
+  `useFoliate` (used inside `Reader`, a child) re-reads those *resolved*
+  values via `getComputedStyle` to re-inject them into the book's iframe,
+  since the iframe is a separate Document that doesn't inherit them. Doing
+  the `<html>` write in a `useEffect` keyed on `settings` seemed natural,
+  but on every settings change React ran the child's effect (which reads
+  `getComputedStyle`) *before* the parent's effect (which would have
+  updated it) — so the book always re-themed one click behind the chrome,
+  silently (no error, and `tsc` had no opinion). Confirmed by browser
+  testing per the human gate below, not by a type error. Fixed by having
+  `useSettings`'s `update()` write to `<html>` synchronously, in the same
+  tick as the state change, instead of in an effect racing against it —
+  see `src/settings.ts`.
+- **Book fonts are self-hosted from Google Fonts' variable, latin-only
+  subset** — same pattern v0 used for Instrument Sans/Literata: a single
+  normal-weight face, no italic, `unicode-range` trimmed to latin. Atkinson
+  Hyperlegible's only variable release is published under the family name
+  "Atkinson Hyperlegible Next" on Google Fonts (the original is
+  static-weight only); the local `@font-face` renames it back to "Atkinson
+  Hyperlegible" so `themes.css`'s existing `--book-font` value didn't need
+  to change.
+- **The Voice group's "System / Natural" engine toggle from the plan isn't
+  in the settings panel yet.** Only Web Speech exists until Piper ships in
+  Phase D — a selector with one real option and one disabled placeholder
+  would be exactly the kind of config knob `CLAUDE.md` says not to add
+  before it's needed. Rate and voice pickers are there; the engine choice
+  arrives with Piper.
 
 ### Lessons from real EPUBs
 
@@ -179,14 +225,15 @@ browser with a real book before it's believed.
 
 ## What's left
 
-### v1 — not started
-- Mobile layout polish (single-column is automatic via CSS container
-  queries; touch target sizing and layout polish are not done)
+### v1 — Phase A (settings panel) shipped, rest not started
 - Highlights and notes
 - In-book search
-- Theme switcher, font/size/line-height settings (3 of the 4 themes are
-  already defined in CSS, just not wired to a UI)
-- Single ⇄ two-page toggle, scrolled reading mode
+- Piper as an opt-in natural voice, running in a worker, plus the "System
+  / Natural" engine toggle in the settings panel
+- Mobile notification / lock-screen TTS controls (Media Session) + web
+  app manifest
+- Mobile layout polish (single-column is automatic via CSS container
+  queries; touch target sizing and layout polish are not done)
 
 ### v2 — not started
 - Settings sync polish

@@ -1,15 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
+import type { SettingsRecord } from '../library/db'
 import { useTtsDriver } from '../tts/driver'
 import { Chrome } from './Chrome'
 import { attachClickZones, attachKeys } from './interactions'
 import { Rail } from './Rail'
+import { SettingsPanel } from './SettingsPanel'
 import { Toc } from './Toc'
 import { useFoliate } from './useFoliate'
 import './Reader.css'
 
 const IDLE_MS = 2500
 
-export function Reader({ bookId, onClose }: { bookId: string; onClose: () => void }) {
+interface ReaderProps {
+  bookId: string
+  settings: SettingsRecord | null
+  onUpdateSettings: (patch: Partial<SettingsRecord>) => void
+  onClose: () => void
+}
+
+export function Reader({ bookId, settings, onUpdateSettings, onClose }: ReaderProps) {
   const [chromeVisible, setChromeVisible] = useState(true)
   const [tocOpen, setTocOpen] = useState(false)
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -25,10 +34,11 @@ export function Reader({ bookId, onClose }: { bookId: string; onClose: () => voi
     idleTimer.current = setTimeout(() => setChromeVisible(false), IDLE_MS)
   }
 
-  const { view, location, containerRef } = useFoliate(bookId, {
-    onActivity: showChrome,
-    onMiddleTap: () => setChromeVisible(v => !v),
-  })
+  const { view, location, containerRef } = useFoliate(
+    bookId,
+    { onActivity: showChrome, onMiddleTap: () => setChromeVisible(v => !v) },
+    settings,
+  )
   const tts = useTtsDriver(view)
 
   // Starts the idle countdown once the book is ready, then wires input for
@@ -66,6 +76,9 @@ export function Reader({ bookId, onClose }: { bookId: string; onClose: () => voi
             onClose={onClose}
           />
           {tocOpen && <Toc view={view} onClose={() => setTocOpen(false)} />}
+          {settings && (
+            <SettingsPanel view={view} tts={tts} settings={settings} onUpdate={onUpdateSettings} />
+          )}
         </>
       )}
     </div>

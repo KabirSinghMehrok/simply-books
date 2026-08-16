@@ -1,10 +1,8 @@
-import { ChevronDown, List, Pause, Play, RotateCcw, SkipBack, SkipForward, X } from 'lucide-react'
+import { List, Pause, Play, RotateCcw, Settings, SkipBack, SkipForward, X } from 'lucide-react'
 import type { FoliateView } from 'foliate-js/view.js'
 import type { useTtsDriver } from '../tts/driver'
 import { flatten } from '../library/meta'
 import './Chrome.css'
-
-const RATES = [0.75, 1, 1.25, 1.5, 2]
 
 interface ChromeProps {
   view: FoliateView
@@ -48,41 +46,13 @@ export function Chrome({ view, tts, visible, onToggleToc, onClose }: ChromeProps
         </button>
 
         <div className="chrome__controls">
-          <div className="chrome__select">
-            <select
-              value={tts.rate}
-              onChange={e => tts.setRate(Number(e.target.value))}
-              aria-label="Reading speed"
-            >
-              {RATES.map(r => (
-                <option key={r} value={r}>
-                  {r}×
-                </option>
-              ))}
-            </select>
-            <ChevronDown size={14} />
-          </div>
-
-          {tts.voices.length > 0 && (
-            <div className="chrome__select">
-              <select
-                value={tts.voice?.voiceURI ?? ''}
-                onChange={e => {
-                  const next = tts.voices.find(v => v.voiceURI === e.target.value)
-                  if (next) tts.setVoice(next)
-                }}
-                aria-label="Voice"
-              >
-                {tts.voices.map(v => (
-                  <option key={v.voiceURI} value={v.voiceURI}>
-                    {v.name}
-                    {v.localService ? '' : ' (online)'}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={14} />
-            </div>
-          )}
+          <button
+            className="chrome__icon"
+            popoverTarget="settings-panel"
+            aria-label="Settings"
+          >
+            <Settings size={18} />
+          </button>
         </div>
       </div>
     </div>

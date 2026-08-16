@@ -1,11 +1,8 @@
-// v0 hardcodes Paper; v1's theme switcher passes the active theme's
-// tokens through here instead of this constant.
-const PAPER = { bg: '#fbfaf7', fg: '#1c1b19', accent: '#0f5c4c', bookFont: 'Literata, serif' }
-
 /**
  * Trap #8: the paginator writes column-width, column-gap, padding,
  * overflow, height, width onto documentElement/body with !important.
- * Never touch those six here -- only color, background, font-*.
+ * Never touch those six here -- only color, background, font-*
+ * (and line-height, which the paginator never sets either).
  */
 /*
  * The svg[viewBox] rule below: cover and frontmatter pages usually wrap their
@@ -22,19 +19,40 @@ const PAPER = { bg: '#fbfaf7', fg: '#1c1b19', accent: '#0f5c4c', bookFont: 'Lite
  * Keep prose like this OUT of the template literal below -- a stray backtick
  * inside it silently terminates the string.
  */
+/**
+ * The book's iframe is a separate Document -- it doesn't inherit the outer
+ * page's CSS custom properties -- so the active theme/font/scale reach it
+ * only by re-reading the *resolved* values off the outer root (which
+ * `useSettings` keeps current via `data-theme` + inline custom-property
+ * overrides) and writing them into this doc as plain values. Must be
+ * re-run against every loaded section doc whenever settings change --
+ * see useFoliate.ts / Reader.tsx.
+ */
 export function injectTheme(doc: Document): void {
+  const root = getComputedStyle(document.documentElement)
+  const bg = root.getPropertyValue('--bg').trim()
+  const fg = root.getPropertyValue('--fg').trim()
+  const accent = root.getPropertyValue('--accent').trim()
+  const bookFont = root.getPropertyValue('--book-font').trim()
+  const fontScale = parseFloat(root.getPropertyValue('--font-scale')) || 1
+  const lineHeight = root.getPropertyValue('--line-height').trim() || '1.6'
+
   const existing = doc.getElementById('sb-theme')
   const style = existing instanceof HTMLStyleElement ? existing : doc.createElement('style')
   style.id = 'sb-theme'
   style.textContent = `
+    html {
+      font-size: ${fontScale * 100}% !important;
+    }
     html, body {
-      background: ${PAPER.bg} !important;
-      color: ${PAPER.fg} !important;
-      font-family: ${PAPER.bookFont} !important;
+      background: ${bg} !important;
+      color: ${fg} !important;
+      font-family: ${bookFont} !important;
+      line-height: ${lineHeight} !important;
     }
     svg[viewBox] { width: auto; }
     ::highlight(tts-spoken) {
-      text-decoration: underline solid ${PAPER.accent} 2px;
+      text-decoration: underline solid ${accent} 2px;
       text-underline-offset: 3px;
     }
   `

@@ -1,0 +1,102 @@
+/* [popover] defaults to `inset: 0; margin: auto` (screen-centered) --
+   overridden here to anchor under the top bar instead. */
+.settings-panel {
+  position: fixed;
+  inset: auto;
+  top: 52px;
+  right: 12px;
+  margin: 0;
+  width: 280px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  padding: 4px 0;
+  font-family: var(--chrome-font);
+  /* Escapes the top layer for painting, but stays a DOM descendant of
+     .chrome -- inherits its `pointer-events: none`, so it must be undone
+     here or none of these controls would be clickable. */
+  pointer-events: auto;
+}
+
+.settings-panel__group {
+  padding: 10px 16px;
+}
+
+.settings-panel__group + .settings-panel__group {
+  border-top: 1px solid var(--hairline);
+}
+
+.settings-panel__group h3 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--chrome-fg);
+}
+
+.settings-panel__swatches {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.settings-panel__swatch {
+  flex: 1;
+  height: 32px;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.settings-panel__swatch--active {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.settings-panel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 6px 0;
+}
+
+.settings-panel__row select {
+  background: none;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--chrome-fg);
+}
+
+.settings-panel__segmented {
+  display: flex;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.settings-panel__segment {
+  flex: 1;
+  padding: 8px 4px;
+  font-size: 12px;
+  color: var(--chrome-fg);
+}
+
+.settings-panel__segment + .settings-panel__segment {
+  border-left: 1px solid var(--hairline);
+}
+
+.settings-panel__segment--active {
+  background: var(--surface);
+  color: var(--fg);
+  font-weight: 600;
+}

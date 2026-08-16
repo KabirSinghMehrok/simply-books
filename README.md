@@ -4,12 +4,15 @@ A free, fully client-side EPUB reader with text-to-speech. No backend, no
 accounts, no per-user cost — everything runs in the browser and ships as
 static files.
 
-## Features (v0)
+## Features
 
 - Add EPUB files by picking or dragging them in — stored locally in
   IndexedDB, nothing leaves the browser
-- Two-page spread reading view with keyboard, click-zone, and swipe
-  navigation, plus a table of contents panel
+- Reading view with keyboard, click-zone, and swipe navigation, plus a
+  table of contents panel
+- Settings panel: 4 reading themes (Paper/Ink/Dusk/Slate), font choice,
+  size and line height, and single-page / two-page / scrolled layout —
+  all applied live, mid-book
 - Text-to-speech that reads sentence by sentence, highlights the sentence
   being spoken, and turns the page on its own as it goes
 - Play/pause, skip to the previous/next sentence, and a "read this page"
@@ -17,8 +20,7 @@ static files.
   (independent of where playback last stopped)
 - A reading progress rail you can click to jump to any point in the book
 - Resumes exactly where you left off after a refresh
-- Flat, single reading theme (Paper) for now — see [ROADMAP.md](ROADMAP.md)
-  for what's next
+- See [ROADMAP.md](ROADMAP.md) for what's next
 
 ## Stack
 
@@ -49,6 +51,7 @@ No environment variables, no API keys, no backend to run.
 ```
 src/
   App.tsx                 switches between the library and reader views
+  settings.ts              loads/persists appearance settings, applies them to <html>
   themes.css               reading theme tokens (fonts, colors)
   library/
     db.ts                  IndexedDB storage (books, progress, settings)
@@ -60,6 +63,7 @@ src/
     theme-inject.ts         injects reading theme + TTS highlight into the book
     Reader.tsx              composes the reader view
     Chrome.tsx              top bar + TTS controls
+    SettingsPanel.tsx        appearance/layout/voice settings (native popover)
     Rail.tsx                progress rail
     Toc.tsx                 table of contents panel
   tts/
@@ -79,5 +83,5 @@ The build output (`dist/`) is fully static — any static host works
 
 Project code has no license file yet — treat as all rights reserved until
 one is added. Third-party: foliate-js is MIT-licensed; the bundled fonts
-(Instrument Sans, Literata) are SIL Open Font License 1.1 — see
-`public/fonts/OFL-*.txt`.
+(Instrument Sans, Literata, Source Serif 4, Crimson Pro, Atkinson
+Hyperlegible) are SIL Open Font License 1.1 — see `public/fonts/OFL-*.txt`.
