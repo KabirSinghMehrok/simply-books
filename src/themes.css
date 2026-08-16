@@ -1,0 +1,84 @@
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/InstrumentSans-Variable.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215;
+}
+
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/Literata-Variable.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215;
+}
+
+/*
+ * Reading identities, not brightness levels — see plan "The 4 themes".
+ * v0 hardcodes Paper; Ink/Dusk/Slate are defined now so v1's switcher
+ * is a token swap, not a redesign. Their fonts aren't shipped in v0.
+ */
+:root {
+  --bg: #fbfaf7;
+  --fg: #1c1b19;
+  --accent: #0f5c4c;
+  --book-font: 'Literata', serif;
+}
+
+[data-theme='ink'] {
+  --bg: #121316;
+  --fg: #e4e2dd;
+  --accent: #7fb3ff;
+  --book-font: 'Source Serif 4', serif;
+}
+
+[data-theme='dusk'] {
+  --bg: #1e1b18;
+  --fg: #d8cfc2;
+  --accent: #e0a458;
+  --book-font: 'Crimson Pro', serif;
+}
+
+[data-theme='slate'] {
+  --bg: #edeef0;
+  --fg: #22262b;
+  --accent: #3b5bdb;
+  --book-font: 'Atkinson Hyperlegible', sans-serif;
+}
+
+:root {
+  --chrome-fg: color-mix(in oklab, var(--fg) 65%, var(--bg));
+  --hairline: color-mix(in oklab, var(--fg) 14%, var(--bg));
+  --surface: color-mix(in oklab, var(--fg) 5%, var(--bg));
+  --chrome-font: 'Instrument Sans', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--chrome-font);
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
