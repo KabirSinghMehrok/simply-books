@@ -1,15 +1,23 @@
-import { useEffect, useRef, useState } from 'react'
-import type { SettingsRecord } from '../library/db'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { AnnotationRecord, SettingsRecord } from '../library/db'
 import { useTtsDriver } from '../tts/driver'
 import { Chrome } from './Chrome'
-import { attachClickZones, attachKeys } from './interactions'
+import { attachClickZones, attachKeys, type SelectionInfo } from './interactions'
+import { NoteEditor } from './NoteEditor'
 import { Rail } from './Rail'
+import { SelectionToolbar } from './SelectionToolbar'
 import { SettingsPanel } from './SettingsPanel'
 import { Toc } from './Toc'
+import { computeMarkers, useAnnotations } from './useAnnotations'
 import { useFoliate } from './useFoliate'
 import './Reader.css'
 
 const IDLE_MS = 2500
+
+/** What the note editor is open for: a brand-new highlight, or an existing one. */
+type NoteTarget =
+  | { kind: 'new'; range: Range; index: number; color: string }
+  | { kind: 'edit'; record: AnnotationRecord }
 
 interface ReaderProps {
   bookId: string
@@ -21,6 +29,8 @@ interface ReaderProps {
 export function Reader({ bookId, settings, onUpdateSettings, onClose }: ReaderProps) {
   const [chromeVisible, setChromeVisible] = useState(true)
   const [tocOpen, setTocOpen] = useState(false)
+  const [selection, setSelection] = useState<(SelectionInfo & { index: number }) | null>(null)
+  const [noteTarget, setNoteTarget] = useState<NoteTarget | null>(null)
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   // Read once: this doesn't need to react to the setting changing mid-session.
   const reducedMotion = useRef(
@@ -34,12 +44,53 @@ export function Reader({ bookId, settings, onUpdateSettings, onClose }: ReaderPr
     idleTimer.current = setTimeout(() => setChromeVisible(false), IDLE_MS)
   }
 
+  const { annotations, addOrMergeHighlight, deleteHighlight, updateNote } = useAnnotations(bookId)
   const { view, location, containerRef } = useFoliate(
     bookId,
-    { onActivity: showChrome, onMiddleTap: () => setChromeVisible(v => !v) },
+    {
+      onActivity: showChrome,
+      onMiddleTap: () => setChromeVisible(v => !v),
+      onSelection: (info, index) => setSelection(info && { ...info, index }),
+    },
     settings,
+    annotations,
   )
   const tts = useTtsDriver(view)
+  // Rects need re-measuring on every page turn, not just when the annotation
+  // list changes -- a section's multi-column content pans inside a
+  // viewport-sized iframe, so a rect measured at one page is wrong on the next.
+  const markers = useMemo(() => (view ? computeMarkers(view, annotations) : []), [view, annotations, location])
+
+  function handlePickColor(color: string) {
+    if (!view || !selection) return
+    void addOrMergeHighlight(view, selection.range, selection.index, color, null)
+    onUpdateSettings({ lastHighlightColor: color })
+    setSelection(null)
+  }
+
+  function handleAddNote() {
+    if (!selection) return
+    setNoteTarget({
+      kind: 'new',
+      range: selection.range,
+      index: selection.index,
+      color: settings?.lastHighlightColor ?? '#ffe066',
+    })
+    setSelection(null)
+  }
+
+  function handleSaveNote(text: string) {
+    if (!view || !noteTarget) return
+    if (noteTarget.kind === 'edit') void updateNote(noteTarget.record, text || null)
+    else void addOrMergeHighlight(view, noteTarget.range, noteTarget.index, noteTarget.color, text || null)
+    setNoteTarget(null)
+  }
+
+  function handleDeleteHighlight() {
+    if (!view || noteTarget?.kind !== 'edit') return
+    void deleteHighlight(view, noteTarget.record)
+    setNoteTarget(null)
+  }
 
   // Starts the idle countdown once the book is ready, then wires input for
   // everything outside the book's iframe. Keys go on the window so paging
@@ -79,7 +130,31 @@ export function Reader({ bookId, settings, onUpdateSettings, onClose }: ReaderPr
           {settings && (
             <SettingsPanel view={view} tts={tts} settings={settings} onUpdate={onUpdateSettings} />
           )}
+          {selection && (
+            <SelectionToolbar rect={selection.rect} onPick={handlePickColor} onNote={handleAddNote} />
+          )}
+          {markers.map(marker => (
+            <button
+              key={marker.id}
+              className="reader__note-marker"
+              style={{ left: marker.left, top: marker.top, background: marker.color }}
+              aria-label="Open note"
+              onClick={() => {
+                const record = annotations.find(a => a.id === marker.id)
+                if (record) setNoteTarget({ kind: 'edit', record })
+              }}
+            />
+          ))}
         </>
+      )}
+      {noteTarget && (
+        <NoteEditor
+          color={noteTarget.kind === 'edit' ? noteTarget.record.color : noteTarget.color}
+          initialText={noteTarget.kind === 'edit' ? (noteTarget.record.note ?? '') : ''}
+          onSave={handleSaveNote}
+          onDelete={noteTarget.kind === 'edit' ? handleDeleteHighlight : undefined}
+          onCancel={() => setNoteTarget(null)}
+        />
       )}
     </div>
   )

@@ -20,6 +20,9 @@ static files.
   (independent of where playback last stopped)
 - A reading progress rail you can click to jump to any point in the book
 - Resumes exactly where you left off after a refresh
+- Highlights (4 colors) and notes — select text for a color/note toolbar,
+  overlapping highlights merge (new color wins, notes concatenate), and
+  highlights survive navigating away and back
 - See [ROADMAP.md](ROADMAP.md) for what's next
 
 ## Stack
@@ -59,11 +62,15 @@ src/
     Library.tsx             book grid, add/drag-drop, delete
   reader/
     useFoliate.ts           owns the foliate-js <foliate-view> element
-    interactions.ts         click-zone/keyboard navigation
+    interactions.ts         click-zone/keyboard navigation, text selection
+    annotations.ts          highlight overlap/merge math (Node-testable, no DOM)
+    useAnnotations.ts        persists highlights, applies merges against the live view
     theme-inject.ts         injects reading theme + TTS highlight into the book
     Reader.tsx              composes the reader view
     Chrome.tsx              top bar + TTS controls
     SettingsPanel.tsx        appearance/layout/voice settings (native popover)
+    SelectionToolbar.tsx     highlight color / note picker on text selection
+    NoteEditor.tsx           add/edit/remove a highlight's note
     Rail.tsx                progress rail
     Toc.tsx                 table of contents panel
   tts/
@@ -71,6 +78,8 @@ src/
     driver.ts               the TTS playback state machine
   types/
     foliate-view.d.ts       hand-written types for foliate-js (it ships none)
+    foliate-epubcfi.d.ts    hand-written types for foliate-js's CFI module
+    foliate-overlayer.d.ts  hand-written types for foliate-js's highlight renderer
 public/fonts/               self-hosted variable fonts (OFL-licensed)
 ```
 

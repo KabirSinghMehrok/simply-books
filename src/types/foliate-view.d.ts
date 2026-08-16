@@ -66,6 +66,13 @@ export interface Renderer extends HTMLElement {
   getContents(): { index: number; doc: Document }[]
   destroy(): void
 }
+/** What `view.resolveCFI`/`epub.js`'s resolver hands back for any CFI string. */
+export interface ResolvedCFI {
+  index: number
+  /** Always returns a Range -- collapsed (zero-length) for a point CFI. */
+  anchor(doc: Document): Range
+}
+
 export interface FoliateView extends HTMLElement {
   book: Book
   renderer: Renderer
@@ -89,4 +96,19 @@ export interface FoliateView extends HTMLElement {
    * useFoliate's ensureTts builds a TTS directly instead -- do not call this.
    */
   initTTS(granularity: 'word' | 'sentence'): Promise<void>
+  /** A CFI for `range` inside section `index` -- omit `range` for the section's own base CFI. */
+  getCFI(index: number, range?: Range): string
+  resolveCFI(cfi: string): ResolvedCFI
+  /**
+   * Draws (or, with `remove`, un-draws) an annotation keyed by `annotation.value`
+   * (a CFI). Silently no-ops if that CFI's section isn't currently loaded --
+   * safe to call for every persisted annotation on every `create-overlay`.
+   * Extra properties on `annotation` (color, note, ...) ride along to the
+   * `draw-annotation` event's `detail.annotation`.
+   */
+  addAnnotation(
+    annotation: { value: string; [key: string]: unknown },
+    remove?: boolean,
+  ): Promise<{ index: number; label: string } | undefined>
+  deleteAnnotation(annotation: { value: string }): Promise<{ index: number; label: string } | undefined>
 }

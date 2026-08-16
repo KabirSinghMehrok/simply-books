@@ -1,0 +1,31 @@
+.selection-toolbar {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  background: var(--bg);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.2);
+}
+
+.selection-toolbar__swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--hairline);
+}
+
+.selection-toolbar__note {
+  display: flex;
+  padding: 6px;
+  border-radius: 5px;
+  color: var(--chrome-fg);
+}
+
+.selection-toolbar__note:hover {
+  background: var(--surface);
+  color: var(--fg);
+}

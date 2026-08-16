@@ -5,6 +5,28 @@ export interface InteractionHandlers {
   onActivity?: () => void
   /** A tap in the middle third of the page (not a left/right nav zone) -- toggles chrome. */
   onMiddleTap?: () => void
+  /** A non-empty text selection appeared/changed/cleared in this section. */
+  onSelection?: (selection: SelectionInfo | null, index: number) => void
+}
+
+export interface SelectionInfo {
+  range: Range
+  /** Viewport-relative bounding rect of the selection, corrected for the iframe offset. */
+  rect: { left: number; top: number; right: number; bottom: number }
+}
+
+/**
+ * A section's iframe is as wide as its whole column strip in paginated mode
+ * (7680px for a long chapter) but positioned as a normal viewport-sized
+ * element -- so a rect measured inside it (getBoundingClientRect,
+ * getClientRects) needs the iframe's own on-screen offset added before it
+ * means anything in the outer page's coordinate space. `frameElement` is
+ * null when `doc` is the outer document itself, in which case there's
+ * nothing to correct.
+ */
+export function frameOffset(doc: Document): { dx: number; dy: number } {
+  const frame = doc.defaultView?.frameElement?.getBoundingClientRect()
+  return { dx: frame?.left ?? 0, dy: frame?.top ?? 0 }
 }
 
 /**
@@ -89,10 +111,9 @@ export function attachClickZones(
       // A paginated section's iframe spans the entire column strip -- 7680px
       // for a long chapter -- so its own innerWidth would drop every click
       // into the "left third". Convert to viewport coordinates and split the
-      // visible page instead. frameElement is null when this is attached to
-      // the container, where clientX is already viewport-relative.
-      const frameLeft = doc.defaultView?.frameElement?.getBoundingClientRect().left ?? 0
-      const x = e.clientX + frameLeft
+      // visible page instead. frameOffset is 0 when this is attached to the
+      // container, where clientX is already viewport-relative.
+      const x = e.clientX + frameOffset(doc).dx
       const width = window.innerWidth
       if (x < width / 3) void view.goLeft()
       else if (x > (width * 2) / 3) void view.goRight()
@@ -101,5 +122,43 @@ export function attachClickZones(
     { signal },
   )
 
+  return () => controller.abort()
+}
+
+/**
+ * Reports the current text selection inside one section document, or `null`
+ * once it's cleared. `selectionchange` fires on the Document that owns the
+ * selection, not the window -- same cross-realm reason as everything else
+ * here -- so this is attached per-section-doc from useFoliate's `load`
+ * listener, never once on the outer window. `pointerup` is a second trigger
+ * alongside it: it's the point a drag-to-select gesture actually finishes,
+ * and it's what still fires if `selectionchange` support is flaky for a
+ * given interaction (e.g. selecting via double/triple-click).
+ */
+export function attachSelection(
+  doc: Document,
+  onSelection: (selection: SelectionInfo | null) => void,
+): () => void {
+  const controller = new AbortController()
+  const { signal } = controller
+
+  function report() {
+    const sel = doc.getSelection()
+    const text = sel?.toString()
+    if (!sel || sel.rangeCount === 0 || !text) {
+      onSelection(null)
+      return
+    }
+    const range = sel.getRangeAt(0)
+    const rect = range.getBoundingClientRect()
+    const { dx, dy } = frameOffset(doc)
+    onSelection({
+      range,
+      rect: { left: rect.left + dx, top: rect.top + dy, right: rect.right + dx, bottom: rect.bottom + dy },
+    })
+  }
+
+  doc.addEventListener('selectionchange', report, { signal })
+  doc.addEventListener('pointerup', report, { signal })
   return () => controller.abort()
 }

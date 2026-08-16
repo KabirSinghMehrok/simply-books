@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { makeBook, type FoliateView, type Location, type Tts } from 'foliate-js/view.js'
 import 'foliate-js/view.js' // side effect: defines the <foliate-view> custom element
+import { Overlayer } from 'foliate-js/overlayer.js'
 import { textWalker } from 'foliate-js/text-walker.js'
-import { getBook, getProgress, putProgress, type Flow, type SettingsRecord } from '../library/db'
-import { attachClickZones, attachKeys, type InteractionHandlers } from './interactions'
+import { getBook, getProgress, putProgress, type AnnotationRecord, type Flow, type SettingsRecord } from '../library/db'
+import { attachClickZones, attachKeys, attachSelection, type InteractionHandlers } from './interactions'
 import { highlightSpokenRange, injectTheme } from './theme-inject'
 
 const SAVE_DEBOUNCE_MS = 500
@@ -80,6 +81,7 @@ export function useFoliate(
   bookId: string,
   handlers: InteractionHandlers = {},
   settings: SettingsRecord | null = null,
+  annotations: AnnotationRecord[] = [],
 ) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<FoliateView | null>(null)
@@ -93,6 +95,12 @@ export function useFoliate(
   const handlersRef = useRef(handlers)
   useEffect(() => {
     handlersRef.current = handlers
+  })
+  // Same indirection, for the same reason: 'create-overlay' is attached once
+  // per bookId, in boot() below, well before this ever has a real list in it.
+  const annotationsRef = useRef(annotations)
+  useEffect(() => {
+    annotationsRef.current = annotations
   })
 
   useEffect(() => {
@@ -115,6 +123,27 @@ export function useFoliate(
       }
       attachKeys(el, e.detail.doc, forward)
       attachClickZones(el, e.detail.doc, forward)
+      attachSelection(e.detail.doc, selection => handlersRef.current.onSelection?.(selection, e.detail.index))
+    }) as EventListener)
+
+    // Trap: only search results get redrawn on section reload
+    // (view.js's #createOverlayer re-adds *its own* search matches, not
+    // ours) -- so persisted highlights vanish on navigation unless we
+    // redraw them ourselves here. addAnnotation no-ops for a CFI whose
+    // section isn't the one that was just (re)created, so it's safe/cheap
+    // to offer the whole list on every fire rather than filter by index
+    // first.
+    el.addEventListener('create-overlay', (() => {
+      for (const a of annotationsRef.current) void el.addAnnotation({ value: a.cfi, color: a.color })
+    }) as EventListener)
+
+    el.addEventListener('draw-annotation', ((
+      e: CustomEvent<{
+        draw: (drawFn: typeof Overlayer.highlight, opts: { color: string }) => void
+        annotation: { color: string }
+      }>,
+    ) => {
+      e.detail.draw(Overlayer.highlight, { color: e.detail.annotation.color })
     }) as EventListener)
 
     el.addEventListener('relocate', ((e: CustomEvent<Location>) => {

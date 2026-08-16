@@ -17,21 +17,24 @@ export interface ProgressRecord {
   updatedAt: number
 }
 
-// Unused in v0 (no highlights/notes yet) but declared now: a schema bump
-// later costs more than one unused createObjectStore call today.
 export interface AnnotationRecord {
   id: string
   bookId: string
   cfi: string
   text: string
   color: string
-  note: string
+  note: string | null
   createdAt: number
+  updatedAt: number
 }
 
 export type ThemeId = 'paper' | 'ink' | 'dusk' | 'slate'
 export type FontFamily = 'theme' | 'literata' | 'source-serif' | 'crimson-pro' | 'atkinson'
 export type Flow = 'paginated' | 'scrolled'
+
+// Preview swatches live with the UI (settings.ts/SelectionToolbar.tsx); these
+// are just the values, colocated with the schema like ThemeId/FontFamily are.
+export const HIGHLIGHT_COLORS = ['#ffe066', '#8ce99a', '#74c0fc', '#ffa8cc'] as const
 
 export interface SettingsRecord {
   key: 'app'
@@ -43,6 +46,7 @@ export interface SettingsRecord {
   columns: 1 | 2
   ttsRate: number
   ttsVoiceURI: string | null
+  lastHighlightColor: string
 }
 
 interface SimplyBookDB extends DBSchema {
@@ -62,6 +66,7 @@ const DEFAULT_SETTINGS: SettingsRecord = {
   columns: 2,
   ttsRate: 1,
   ttsVoiceURI: null,
+  lastHighlightColor: HIGHLIGHT_COLORS[0],
 }
 
 let dbPromise: Promise<IDBPDatabase<SimplyBookDB>> | undefined
@@ -95,12 +100,30 @@ export async function getBook(id: string): Promise<BookRecord | undefined> {
 
 export async function deleteBook(id: string): Promise<void> {
   const db = await getDB()
-  const tx = db.transaction(['books', 'progress'], 'readwrite')
+  const tx = db.transaction(['books', 'progress', 'annotations'], 'readwrite')
+  const annotations = tx.objectStore('annotations')
+  const orphanedKeys = await annotations.index('byBook').getAllKeys(id)
   await Promise.all([
     tx.objectStore('books').delete(id),
     tx.objectStore('progress').delete(id),
+    ...orphanedKeys.map(key => annotations.delete(key)),
     tx.done,
   ])
+}
+
+export async function listAnnotations(bookId: string): Promise<AnnotationRecord[]> {
+  const db = await getDB()
+  return db.getAllFromIndex('annotations', 'byBook', bookId)
+}
+
+export async function putAnnotation(record: AnnotationRecord): Promise<void> {
+  const db = await getDB()
+  await db.put('annotations', record)
+}
+
+export async function deleteAnnotation(id: string): Promise<void> {
+  const db = await getDB()
+  await db.delete('annotations', id)
 }
 
 export async function getProgress(bookId: string): Promise<ProgressRecord | undefined> {

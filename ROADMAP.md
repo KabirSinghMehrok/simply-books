@@ -1,5 +1,18 @@
 # Roadmap
 
+## Status: v1 Phase B shipped
+
+- Highlights (4 colors) via a selection toolbar, persisted in IndexedDB,
+  redrawn correctly after navigating away and back
+- Overlapping highlights merge into one: the new color wins, notes from
+  every absorbed highlight concatenate in document order
+- Notes: a note always implies a highlight; note-bearing highlights get a
+  small floating indicator (anchored to the end of the highlight, not its
+  start) that opens an editor to change or remove the note, or delete the
+  highlight entirely
+- Deleting a book now also deletes its highlights, instead of leaving them
+  as permanent orphans in IndexedDB
+
 ## Status: v1 Phase A shipped
 
 - Settings panel (top bar gear icon, native HTML Popover API — no
@@ -195,6 +208,33 @@ it's the only neural option that also runs acceptably on mobile.
   would be exactly the kind of config knob `CLAUDE.md` says not to add
   before it's needed. Rate and voice pickers are there; the engine choice
   arrives with Piper.
+- **Highlights vanish on navigation unless redrawn by hand.** `view.js`'s
+  `#createOverlayer` re-adds *search* results on a section reload
+  (`create-overlay` fires after it), but never touches user annotations —
+  that's on us. `useFoliate.ts` listens for `create-overlay` and calls
+  `view.addAnnotation()` for every persisted highlight in the book on every
+  fire; `addAnnotation` silently no-ops for a CFI whose section isn't the
+  one that was just (re)created, so offering the whole list is cheap and
+  correct without us tracking section indices ourselves.
+- **`buildRange` (two CFIs -> one range CFI) is not exported** by
+  `epubcfi.js`, confirming the plan's read of the source. Merging
+  overlapping highlights instead: `annotations.ts` decides, in pure CFI
+  string math (`compare`/`collapse`, both exported), which existing CFI has
+  the earliest start and which has the latest end; `useAnnotations.ts` then
+  resolves just those two boundary points to real DOM positions via
+  `view.resolveCFI(...).anchor(doc)` and builds one merged `Range` with
+  `setStart`/`setEnd`, re-deriving the final CFI via `view.getCFI()`. The
+  decision logic has no DOM dependency and is Node-testable
+  (`annotations.ts`'s `demo()`); the Range-building step does and isn't.
+- **A note's floating indicator has to be recomputed on every page turn,
+  not cached from when the highlight was drawn.** This one isn't in the
+  plan: a section's iframe is viewport-sized, but paginated mode pans its
+  multi-column content *inside* that iframe as you turn pages within the
+  same (still-loaded) section — no `create-overlay`/`load` refires, so a
+  client rect captured once at draw time silently goes stale the moment the
+  page turns. `computeMarkers()` in `useAnnotations.ts` re-resolves every
+  note-bearing highlight's CFI to a fresh `Range`/`getClientRects()` call on
+  every `relocate`, not just on section load.
 
 ### Lessons from real EPUBs
 
@@ -225,8 +265,7 @@ browser with a real book before it's believed.
 
 ## What's left
 
-### v1 — Phase A (settings panel) shipped, rest not started
-- Highlights and notes
+### v1 — Phases A and B shipped, rest not started
 - In-book search
 - Piper as an opt-in natural voice, running in a worker, plus the "System
   / Natural" engine toggle in the settings panel
@@ -234,6 +273,13 @@ browser with a real book before it's believed.
   app manifest
 - Mobile layout polish (single-column is automatic via CSS container
   queries; touch target sizing and layout polish are not done)
+
+### Known Phase B gaps (deliberate, not oversights)
+- No UI to remove a highlight that has no note — only note-bearing
+  highlights are reachable (via their floating indicator), matching the
+  plan's description of that indicator; a tap-to-remove on a plain
+  highlight would need wiring up `view.js`'s `show-annotation` event, not
+  built since nothing in the plan or its human-gate items calls for it yet
 
 ### v2 — not started
 - Settings sync polish

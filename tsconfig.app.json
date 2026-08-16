@@ -14,7 +14,9 @@
     "paths": {
       "foliate-js/view.js": ["./src/types/foliate-view.d.ts"],
       "foliate-js/tts.js": ["./src/types/foliate-tts.d.ts"],
-      "foliate-js/text-walker.js": ["./src/types/foliate-text-walker.d.ts"]
+      "foliate-js/text-walker.js": ["./src/types/foliate-text-walker.d.ts"],
+      "foliate-js/epubcfi.js": ["./src/types/foliate-epubcfi.d.ts"],
+      "foliate-js/overlayer.js": ["./src/types/foliate-overlayer.d.ts"]
     },
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
