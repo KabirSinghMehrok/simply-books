@@ -1,6 +1,7 @@
 import type { FoliateView } from 'foliate-js/view.js'
-import type { SettingsRecord } from '../library/db'
+import type { SettingsRecord, TtsEngine } from '../library/db'
 import type { useTtsDriver } from '../tts/driver'
+import { PIPER_DOWNLOAD_MB } from '../tts/piper-engine'
 import { FONTS, THEMES } from '../settings'
 import { applyLayout } from './useFoliate'
 import './SettingsPanel.css'
@@ -105,6 +106,42 @@ export function SettingsPanel({ view, tts, settings, onUpdate }: SettingsPanelPr
 
       <section className="settings-panel__group">
         <h3>Voice</h3>
+        <div className="settings-panel__segmented">
+          {(
+            [
+              { id: 'system' as const, label: 'System' },
+              { id: 'natural' as const, label: 'Natural' },
+            ] satisfies { id: TtsEngine; label: string }[]
+          ).map(opt => (
+            <button
+              key={opt.id}
+              className={`settings-panel__segment${tts.engine === opt.id ? ' settings-panel__segment--active' : ''}`}
+              aria-pressed={tts.engine === opt.id}
+              onClick={() => tts.setEngine(opt.id)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {tts.engine === 'natural' && tts.piperDownload.status !== 'ready' && (
+          <div className="settings-panel__row settings-panel__piper">
+            {tts.piperDownload.status === 'downloading' ? (
+              <>
+                <progress value={tts.piperDownload.loaded} max={tts.piperDownload.total || undefined} />
+                <span>Downloading voice…</span>
+              </>
+            ) : tts.piperDownload.status === 'error' ? (
+              <>
+                <span>Download failed: {tts.piperDownload.message}</span>
+                <button onClick={tts.downloadPiperVoice}>Retry</button>
+              </>
+            ) : (
+              <button onClick={tts.downloadPiperVoice}>Download voice (~{PIPER_DOWNLOAD_MB} MB)</button>
+            )}
+          </div>
+        )}
+
         <label className="settings-panel__row">
           Rate
           <select value={tts.rate} onChange={e => tts.setRate(Number(e.target.value))}>
@@ -116,18 +153,18 @@ export function SettingsPanel({ view, tts, settings, onUpdate }: SettingsPanelPr
           </select>
         </label>
 
-        {tts.voices.length > 0 && (
+        {tts.voices.length > 0 && (tts.engine !== 'natural' || tts.piperDownload.status === 'ready') && (
           <label className="settings-panel__row">
             Voice
             <select
-              value={tts.voice?.voiceURI ?? ''}
+              value={tts.voice?.voiceId ?? ''}
               onChange={e => {
-                const next = tts.voices.find(v => v.voiceURI === e.target.value)
+                const next = tts.voices.find(v => v.voiceId === e.target.value)
                 if (next) tts.setVoice(next)
               }}
             >
               {tts.voices.map(v => (
-                <option key={v.voiceURI} value={v.voiceURI}>
+                <option key={v.voiceId} value={v.voiceId}>
                   {v.name}
                   {v.localService ? '' : ' (online)'}
                 </option>

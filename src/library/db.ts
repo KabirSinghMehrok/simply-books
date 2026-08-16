@@ -36,6 +36,8 @@ export type Flow = 'paginated' | 'scrolled'
 // are just the values, colocated with the schema like ThemeId/FontFamily are.
 export const HIGHLIGHT_COLORS = ['#ffe066', '#8ce99a', '#74c0fc', '#ffa8cc'] as const
 
+export type TtsEngine = 'system' | 'natural'
+
 export interface SettingsRecord {
   key: 'app'
   themeId: ThemeId
@@ -44,6 +46,7 @@ export interface SettingsRecord {
   lineHeight: number
   flow: Flow
   columns: 1 | 2
+  ttsEngine: TtsEngine
   ttsRate: number
   ttsVoiceURI: string | null
   lastHighlightColor: string
@@ -64,6 +67,7 @@ const DEFAULT_SETTINGS: SettingsRecord = {
   lineHeight: 1.6,
   flow: 'paginated',
   columns: 2,
+  ttsEngine: 'system',
   ttsRate: 1,
   ttsVoiceURI: null,
   lastHighlightColor: HIGHLIGHT_COLORS[0],

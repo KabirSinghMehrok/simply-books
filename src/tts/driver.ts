@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FoliateView, Tts } from 'foliate-js/view.js'
-import { getSettings, putSettings } from '../library/db'
+import { getSettings, putSettings, type TtsEngine } from '../library/db'
 import { ensureTts } from '../reader/useFoliate'
+import { WebSpeechEngine, type EngineVoice, type SpeechEngine } from './engine'
+import { PiperEngine, type DownloadState } from './piper-engine'
 import { parseSSML, type Chunk } from './ssml'
 
 export type Status = 'idle' | 'playing' | 'paused'
@@ -9,9 +11,10 @@ export type Status = 'idle' | 'playing' | 'paused'
 interface Internal {
   chunks: Chunk[]
   i: number
-  gen: number // trap #4: cancel() fires onend synchronously on the outgoing
-  // utterance, so a stale callback must not be allowed to advance the
-  // queue a second time -- every callback checks its gen against this.
+  gen: number // trap #4: cancel() completes the outgoing utterance synchronously
+  // (both engines do this -- see engine.ts/piper-engine.ts), so a stale
+  // callback must not be allowed to advance the queue a second time --
+  // every callback checks its gen against this.
   /**
    * The TTS instance these chunks came from. Mark names are per-block
    * integers valid only for the instance that emitted them, and a new
@@ -25,55 +28,48 @@ interface Internal {
 
 const EMPTY: Internal = { chunks: [], i: 0, gen: 0, tts: null }
 
-let voicesPromise: Promise<SpeechSynthesisVoice[]> | undefined
-
-// Trap #7: getVoices() returns [] until 'voiceschanged' fires in Chrome.
-function loadVoices(): Promise<SpeechSynthesisVoice[]> {
-  voicesPromise ??= new Promise(resolve => {
-    const existing = speechSynthesis.getVoices()
-    if (existing.length > 0) {
-      resolve(existing)
-      return
-    }
-    speechSynthesis.addEventListener('voiceschanged', () => resolve(speechSynthesis.getVoices()), {
-      once: true,
-    })
-  })
-  return voicesPromise
+// One instance per engine for the app's whole lifetime, not per hook call:
+// Web Speech is a global browser singleton regardless, and Piper's worker +
+// downloaded model session are expensive enough that they must survive
+// across books and re-renders rather than being torn down and rebuilt.
+const webSpeechEngine = new WebSpeechEngine()
+let piperEngine: PiperEngine | null = null
+function getPiperEngine(): PiperEngine {
+  piperEngine ??= new PiperEngine()
+  return piperEngine
 }
-
-// Chrome's "Google ..." voices are network-backed; local ones speak with
-// no round trip and no dependency on being online. Surface those first.
-function sortLocalFirst(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice[] {
-  return [...voices].sort((a, b) => Number(b.localService) - Number(a.localService))
+function engineFor(id: TtsEngine): SpeechEngine {
+  return id === 'natural' ? getPiperEngine() : webSpeechEngine
 }
 
 /**
- * Drives Web Speech sentence-by-sentence over whatever `view.tts` is
- * currently loaded. Implements the state machine from the plan exactly:
- * play() has three cases (resume mid-block / first play of the session
- * starts from the visible page / otherwise resume the current block),
- * pause() only cancels the browser engine (`.pause()` is unreliable on
- * Android), and every callback into `speakFrom` is generation-guarded.
+ * Drives sentence-by-sentence playback over whatever `view.tts` is currently
+ * loaded, against either speech engine. Implements the state machine from
+ * the plan exactly: play() has three cases (resume mid-block / first play of
+ * the session starts from the visible page / otherwise resume the current
+ * block), pause() only cancels the engine (`.pause()` on SpeechSynthesis is
+ * unreliable on Android, and Piper has no pause semantics of its own either),
+ * and every callback into `speakFrom` is generation-guarded.
  */
 export function useTtsDriver(view: FoliateView | null) {
   const [status, setStatus] = useState<Status>('idle')
   const [rate, setRateState] = useState(1)
-  const [voice, setVoiceState] = useState<SpeechSynthesisVoice | null>(null)
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
+  const [engine, setEngineState] = useState<TtsEngine>('system')
+  const [voice, setVoiceState] = useState<EngineVoice | null>(null)
+  const [voices, setVoices] = useState<EngineVoice[]>([])
+  const [piperDownload, setPiperDownload] = useState<DownloadState>({ status: 'not-downloaded' })
 
   const internal = useRef<Internal>({ ...EMPTY })
   const rateRef = useRef(1)
-  const voiceRef = useRef<SpeechSynthesisVoice | null>(null)
-  // Held so Chrome can't GC an in-flight utterance mid-sentence.
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
+  const voiceRef = useRef<EngineVoice | null>(null)
+  const engineRef = useRef<TtsEngine>('system')
 
   // A new `view` means a new book: forget the old queue and stop talking.
   useEffect(() => {
     internal.current = { ...EMPTY }
     setStatus('idle')
     return () => {
-      speechSynthesis.cancel()
+      engineFor(engineRef.current).cancel()
     }
   }, [view])
 
@@ -84,11 +80,13 @@ export function useTtsDriver(view: FoliateView | null) {
       if (cancelled) return
       rateRef.current = settings.ttsRate
       setRateState(settings.ttsRate)
+      engineRef.current = settings.ttsEngine
+      setEngineState(settings.ttsEngine)
 
-      const list = sortLocalFirst(await loadVoices())
+      const list = await engineFor(settings.ttsEngine).voices()
       if (cancelled) return
       setVoices(list)
-      const preferred = list.find(v => v.voiceURI === settings.ttsVoiceURI) ?? list[0] ?? null
+      const preferred = list.find(v => v.voiceId === settings.ttsVoiceURI) ?? list[0] ?? null
       voiceRef.current = preferred
       setVoiceState(preferred)
     }
@@ -97,6 +95,45 @@ export function useTtsDriver(view: FoliateView | null) {
       cancelled = true
     }
   }, [])
+
+  // Reloads the voice list whenever the engine changes -- Piper always
+  // resolves to its one bundled voice, System to whatever the OS offers.
+  useEffect(() => {
+    let cancelled = false
+    async function loadVoices() {
+      const list = await engineFor(engine).voices()
+      if (cancelled) return
+      setVoices(list)
+      const settings = await getSettings()
+      if (cancelled) return
+      const preferred = list.find(v => v.voiceId === settings.ttsVoiceURI) ?? list[0] ?? null
+      voiceRef.current = preferred
+      setVoiceState(preferred)
+    }
+    void loadVoices()
+    return () => {
+      cancelled = true
+    }
+  }, [engine])
+
+  // Piper's download progress is a subscription on the engine itself, not
+  // this hook's state -- the worker reports it whenever it happens, and
+  // multiple mounts (e.g. the settings panel) should see the same progress.
+  useEffect(() => {
+    if (engine !== 'natural') return
+    return getPiperEngine().onDownloadState(setPiperDownload)
+  }, [engine])
+
+  // The natural voice's engine.speak() already refuses to synthesize before
+  // its opt-in download finishes, but a resolved speak() call still reads as
+  // "sentence done" to speakFrom's generation-guarded continuation -- so
+  // without this, pressing skip/play while un-downloaded would speak-run
+  // through the whole book near-instantly, one resolved-immediately call at
+  // a time. Checked at every entry point, not just play(): skip and
+  // "read this page" can start a queue from idle too.
+  function piperNotReady(): boolean {
+    return engineRef.current === 'natural' && getPiperEngine().getDownloadState().status !== 'ready'
+  }
 
   function speakFrom(i: number) {
     const s = internal.current
@@ -114,22 +151,21 @@ export function useTtsDriver(view: FoliateView | null) {
     if (!chunk) return
     s.i = i
     const myGen = ++s.gen
-    speechSynthesis.cancel() // fires onend on the outgoing utterance -- gen guards against it
+    const active = engineFor(engineRef.current)
+    active.cancel() // completes the outgoing utterance immediately -- gen guards against it double-advancing
 
-    const utter = new SpeechSynthesisUtterance(chunk.text)
-    utteranceRef.current = utter
-    utter.voice = voiceRef.current
-    utter.rate = rateRef.current
-    utter.onstart = () => {
-      if (s.gen === myGen && chunk.mark) tts.setMark(chunk.mark)
-    }
-    utter.onend = () => {
-      if (s.gen === myGen) void nextSentence()
-    }
-    utter.onerror = e => {
-      if (s.gen === myGen && e.error !== 'interrupted' && e.error !== 'canceled') void nextSentence()
-    }
-    speechSynthesis.speak(utter)
+    void active
+      .speak(chunk.text, {
+        rate: rateRef.current,
+        voiceId: voiceRef.current?.voiceId ?? null,
+        next: s.chunks[i + 1]?.text,
+        onStart: () => {
+          if (s.gen === myGen && chunk.mark) tts.setMark(chunk.mark)
+        },
+      })
+      .then(() => {
+        if (s.gen === myGen) void nextSentence()
+      })
     setStatus('playing')
   }
 
@@ -153,7 +189,7 @@ export function useTtsDriver(view: FoliateView | null) {
   }
 
   async function play() {
-    if (!view) return
+    if (!view || piperNotReady()) return
     const s = internal.current
     // A queue belonging to a section we have since navigated away from can't
     // be resumed. Drop it here rather than let speakFrom bail, which would
@@ -176,18 +212,18 @@ export function useTtsDriver(view: FoliateView | null) {
 
   function pause() {
     // Trap #4 again, on the one path the plan's pseudocode left unguarded:
-    // cancel() fires the in-flight utterance's onend synchronously, and that
+    // cancel() completes the in-flight utterance synchronously, and that
     // handler only checks its own generation. Without invalidating it first,
     // pausing ran nextSentence() -- so the voice carried on to the next
     // sentence, scrollToAnchor dragged the page after it, and speakFrom set
     // the status straight back to 'playing'. Pause never actually paused.
     internal.current.gen++
-    speechSynthesis.cancel() // .pause() is unreliable on Android
+    engineFor(engineRef.current).cancel()
     setStatus('paused')
   }
 
   async function nextSentence() {
-    if (!view) return
+    if (!view || piperNotReady()) return
     const s = internal.current
     if (s.i + 1 < s.chunks.length) {
       speakFrom(s.i + 1)
@@ -198,7 +234,7 @@ export function useTtsDriver(view: FoliateView | null) {
   }
 
   async function prevSentence() {
-    if (!view) return
+    if (!view || piperNotReady()) return
     const s = internal.current
     if (s.i - 1 >= 0) {
       speakFrom(s.i - 1)
@@ -213,7 +249,7 @@ export function useTtsDriver(view: FoliateView | null) {
   // and manual -- silently resyncing on every page turn would discard a
   // listening position just because the reader glanced at another page.
   async function readThisPage() {
-    if (!view?.lastLocation) return
+    if (!view?.lastLocation || piperNotReady()) return
     const tts = await ensureTts(view)
     load(tts, tts.from(view.lastLocation.range))
   }
@@ -224,10 +260,22 @@ export function useTtsDriver(view: FoliateView | null) {
     void getSettings().then(s => putSettings({ ...s, ttsRate: next }))
   }
 
-  function setVoice(next: SpeechSynthesisVoice) {
+  function setVoice(next: EngineVoice) {
     voiceRef.current = next
     setVoiceState(next)
-    void getSettings().then(s => putSettings({ ...s, ttsVoiceURI: next.voiceURI }))
+    void getSettings().then(s => putSettings({ ...s, ttsVoiceURI: next.voiceId }))
+  }
+
+  function setEngine(next: TtsEngine) {
+    // Switching engines mid-sentence would otherwise leave the old engine
+    // talking (or, for Piper, an <audio> element playing) underneath the new
+    // one -- cancel() first, same as skip/pause does.
+    engineFor(engineRef.current).cancel()
+    internal.current.gen++
+    engineRef.current = next
+    setEngineState(next)
+    setStatus('idle')
+    void getSettings().then(s => putSettings({ ...s, ttsEngine: next }))
   }
 
   return {
@@ -242,5 +290,9 @@ export function useTtsDriver(view: FoliateView | null) {
     voice,
     setVoice,
     voices,
+    engine,
+    setEngine,
+    piperDownload,
+    downloadPiperVoice: () => getPiperEngine().download(),
   }
 }

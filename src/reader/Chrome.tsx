@@ -14,6 +14,10 @@ interface ChromeProps {
 
 export function Chrome({ view, tts, visible, onToggleToc, onClose }: ChromeProps) {
   const title = flatten(view.book.metadata.title) || 'Untitled'
+  // The natural voice can't speak before its one-time download finishes --
+  // and piper-engine.ts's own backstop aside, the button simply shouldn't
+  // offer to start it.
+  const playDisabled = tts.engine === 'natural' && tts.piperDownload.status !== 'ready'
 
   return (
     <div className={`chrome${visible ? '' : ' chrome--hidden'}`}>
@@ -34,6 +38,7 @@ export function Chrome({ view, tts, visible, onToggleToc, onClose }: ChromeProps
         <button
           className="chrome__icon chrome__play"
           onClick={tts.status === 'playing' ? tts.pause : tts.play}
+          disabled={playDisabled}
           aria-label={tts.status === 'playing' ? 'Pause' : 'Play'}
         >
           {tts.status === 'playing' ? <Pause size={20} /> : <Play size={20} />}
