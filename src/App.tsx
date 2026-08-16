@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Library } from './library/Library'
+import { Reader } from './reader/Reader'
 
 type View = { kind: 'library' } | { kind: 'reader'; bookId: string }
 
@@ -7,8 +8,7 @@ export default function App() {
   const [view, setView] = useState<View>({ kind: 'library' })
 
   if (view.kind === 'reader') {
-    // Replaced by Reader.tsx in task 5.
-    return <div>Opening book {view.bookId}…</div>
+    return <Reader bookId={view.bookId} />
   }
 
   return <Library onOpen={bookId => setView({ kind: 'reader', bookId })} />

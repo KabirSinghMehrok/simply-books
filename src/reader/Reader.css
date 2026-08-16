@@ -1,0 +1,18 @@
+.reader {
+  position: relative;
+  height: 100%;
+}
+
+.reader__book {
+  height: 100%;
+}
+
+.reader__loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--chrome-fg);
+}
