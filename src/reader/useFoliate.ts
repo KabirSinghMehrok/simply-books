@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { makeBook, type FoliateView, type Location } from 'foliate-js/view.js'
+import { makeBook, type FoliateView, type Location, type Tts } from 'foliate-js/view.js'
 import 'foliate-js/view.js' // side effect: defines the <foliate-view> custom element
 import { getBook, getProgress, putProgress } from '../library/db'
 import { highlightSpokenRange, injectTheme } from './theme-inject'
@@ -15,6 +15,29 @@ function setLayout(view: FoliateView) {
   view.renderer.setAttribute('max-inline-size', '720')
   view.renderer.setAttribute('gap', '7')
   view.renderer.setAttribute('margin', '48')
+}
+
+/**
+ * Initializes `view.tts` for whatever section is currently loaded, and
+ * returns it once ready. initTTS no-ops if the doc hasn't changed, so
+ * calling this redundantly (once from the `load` listener below to
+ * pre-warm, once from driver.ts after advancing a section) is safe --
+ * whichever call gets there first does the real work.
+ *
+ * This function exists because `view.next()` resolving does NOT mean
+ * `view.tts` has been reinitialized for the new section: the `load`
+ * listener's initTTS call is fired-and-forgotten, not awaited by
+ * `next()`. Anything that needs `view.tts` to be current for the
+ * section it just navigated to must await this instead of assuming so.
+ */
+export async function ensureTts(view: FoliateView): Promise<Tts> {
+  await view.initTTS('sentence', range => {
+    highlightSpokenRange(range)
+    // Trap #2: the page follows the voice via scrollToAnchor here,
+    // not view.next() -- one code path for paginated and scrolled.
+    view.renderer.scrollToAnchor(range, false)
+  })
+  return view.tts!
 }
 
 /**
@@ -37,12 +60,7 @@ export function useFoliate(bookId: string) {
       // Trap #5: pre-warm on `load`, never inside the play click handler --
       // initTTS is async (dynamic import) and iOS requires the first
       // speak() to happen synchronously inside a user gesture.
-      void el.initTTS('sentence', range => {
-        highlightSpokenRange(range)
-        // Trap #2: the page follows the voice via scrollToAnchor here,
-        // not view.next() -- one code path for paginated and scrolled.
-        el.renderer.scrollToAnchor(range, false)
-      })
+      void ensureTts(el)
     }) as EventListener)
 
     el.addEventListener('relocate', ((e: CustomEvent<Location>) => {
