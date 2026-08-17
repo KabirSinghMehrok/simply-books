@@ -35,6 +35,9 @@
   narrow viewport, repositioned to sit above the bottom bar instead of the
   top, and font choices render as buttons in their own real typeface
   instead of a plain `<select>`
+- Fixed: on Android Chrome, switching themes left the area behind the
+  reader white. `<html>` never had a background of its own (only `body`
+  did) — see Architecture notes for where that showed through
 - Not shipped: the web app manifest needed for audio to survive
   backgrounding/lock on iOS (a plain Safari tab pauses on lock; only an
   installed PWA gets parity) — still in "What's left" below
@@ -262,6 +265,25 @@ it's the only neural option that also runs acceptably on mobile.
   `'idle'`. `driver.ts` keys the effect on `[view, status]` instead —
   cheap to re-register on every status change, and the only way the
   handler's closure stays current.
+- **`<html>` needs its own background, `body`'s isn't enough on mobile.**
+  `body` already carried `background: var(--bg)`, but nothing above it
+  did. `<html>`'s bare (browser-default, always white) canvas is exposed
+  whenever a mobile browser draws something outside `body`'s own box —
+  Android Chrome's URL-bar collapse/expand resize gap and its pull-to-
+  refresh/overscroll glow both do this — so a theme switch looked like it
+  had no effect on "the background," even though the book's own text area
+  (styled via `theme-inject.ts`, scoped inside the section iframe) was
+  always correct. Fixed by putting `background: var(--bg)` on `html`
+  itself (alongside `body`/`#root`) and adding `overscroll-behavior: none`
+  so the glow effect that exposes it doesn't fire in the first place.
+  Checked one adjacent theory and ruled it out: `paginator.js`'s shadow-DOM
+  gutter-fill element (`#background`) does lose its color on every render
+  after the section's first load (`Paginator.render()` calls
+  `#beforeRender()` without re-passing a `background`, unlike the initial
+  `View.load()` call) — but since `body` already sits directly behind
+  that gutter with the correct color, the gutter turning transparent is
+  currently invisible; not worth a workaround for a symptom it doesn't
+  cause.
 - **Highlights vanish on navigation unless redrawn by hand.** `view.js`'s
   `#createOverlayer` re-adds *search* results on a section reload
   (`create-overlay` fires after it), but never touches user annotations —

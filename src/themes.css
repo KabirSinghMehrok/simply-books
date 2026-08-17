@@ -97,10 +97,15 @@ body,
 #root {
   height: 100%;
   margin: 0;
+  background: var(--bg);
+  /* Android Chrome exposes <html>'s own box during the URL-bar collapse/
+     expand resize and its pull-to-refresh/overscroll glow -- both bypass
+     body's background entirely. overscroll-behavior stops the glow at the
+     source; the background above covers the rest. */
+  overscroll-behavior: none;
 }
 
 body {
-  background: var(--bg);
   color: var(--fg);
   font-family: var(--chrome-font);
 }
