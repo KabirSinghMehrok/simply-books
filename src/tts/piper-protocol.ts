@@ -5,10 +5,12 @@
 export const PIPER_VOICE_ID = 'en_US-lessac-medium'
 
 export type MainToWorker =
+  | { type: 'check' } // is the model already sitting in OPFS from a previous session?
   | { type: 'ensure' } // download the model if needed, then init the ONNX session
   | { type: 'predict'; id: number; text: string }
 
 export type WorkerToMain =
+  | { type: 'stored'; has: boolean }
   | { type: 'progress'; loaded: number; total: number }
   | { type: 'ready' }
   | { type: 'result'; id: number; blob: Blob }

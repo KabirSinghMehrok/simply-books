@@ -12,7 +12,7 @@
 // that through predict()'s own signature. TtsSession's constructor is the
 // only place wasmPaths can be redirected to our self-hosted copies under
 // public/wasm/, per CLAUDE.md's no-external-runtime-dependency stance.
-import { TtsSession } from '@mintplex-labs/piper-tts-web'
+import { stored, TtsSession } from '@mintplex-labs/piper-tts-web'
 import { PIPER_VOICE_ID, type MainToWorker, type WorkerToMain } from './piper-protocol'
 // onnxruntime-web dynamically `import()`s this glue module at runtime (not a
 // fetch -- confirmed in node_modules/onnxruntime-web/dist/ort.wasm.min.mjs),
@@ -63,7 +63,11 @@ function ensureSession(): Promise<TtsSession> {
 
 self.onmessage = (e: MessageEvent<MainToWorker>) => {
   const msg = e.data
-  if (msg.type === 'ensure') {
+  if (msg.type === 'check') {
+    stored()
+      .then(ids => self.postMessage({ type: 'stored', has: ids.includes(PIPER_VOICE_ID) }))
+      .catch(() => self.postMessage({ type: 'stored', has: false }))
+  } else if (msg.type === 'ensure') {
     ensureSession()
       .then(() => self.postMessage({ type: 'ready' }))
       .catch((err: unknown) => self.postMessage({ type: 'error', message: String(err) }))
