@@ -38,6 +38,9 @@
 - Fixed: on Android Chrome, switching themes left the area behind the
   reader white. `<html>` never had a background of its own (only `body`
   did) — see Architecture notes for where that showed through
+- The browser's own chrome (Chrome's address bar, and on Android, the
+  on-screen system navigation bar) now matches the active theme, via a
+  `<meta name="theme-color">` tag kept in sync on every theme change
 - Not shipped: the web app manifest needed for audio to survive
   backgrounding/lock on iOS (a plain Safari tab pauses on lock; only an
   installed PWA gets parity) — still in "What's left" below
@@ -284,6 +287,17 @@ it's the only neural option that also runs acceptably on mobile.
   that gutter with the correct color, the gutter turning transparent is
   currently invisible; not worth a workaround for a symptom it doesn't
   cause.
+- **`theme-color` needs a live element to update, not just a static tag.**
+  `<meta name="theme-color">` in `index.html` sets Paper as the default for
+  first paint, but a browser tab's toolbar (and Android's on-screen system
+  nav bar) only follows theme switches if something rewrites that tag's
+  `content` at runtime. `settings.ts`'s `applyToDocument()` does this from
+  the same `THEMES` table the swatches already use, rather than reading
+  `--bg` back via `getComputedStyle` — one hand-synced source of these
+  colors (already required, for the swatches) instead of two. This only
+  covers the ordinary browser-tab case; an installed PWA's status bar
+  reads a manifest's `theme_color` instead, which doesn't exist yet (no
+  manifest — see "What's left").
 - **Highlights vanish on navigation unless redrawn by hand.** `view.js`'s
   `#createOverlayer` re-adds *search* results on a section reload
   (`create-overlay` fires after it), but never touches user annotations —

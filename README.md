@@ -12,7 +12,8 @@ static files.
   table of contents panel
 - Settings panel: 4 reading themes (Paper/Ink/Dusk/Slate), font choice,
   size and line height, and single-page / two-page / scrolled layout —
-  all applied live, mid-book
+  all applied live, mid-book. The browser's own chrome (address bar, and
+  on Android, the on-screen navigation bar) matches the active theme too
 - Text-to-speech that reads sentence by sentence, highlights the sentence
   being spoken, and turns the page on its own as it goes
 - Two TTS engines: the browser's built-in voices (System), or an opt-in

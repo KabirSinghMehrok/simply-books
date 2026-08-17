@@ -28,6 +28,14 @@ function applyToDocument(settings: SettingsRecord): void {
   const font = FONTS.find(f => f.id === settings.fontFamily)
   if (font) root.style.setProperty('--book-font', font.stack)
   else root.style.removeProperty('--book-font') // 'theme' -- fall back to the [data-theme] rule
+
+  // Matches the browser's own chrome (Chrome's address bar, and on Android,
+  // the on-screen system nav bar) to the active theme. Reused from THEMES
+  // rather than read back via getComputedStyle -- both already have to stay
+  // in sync with themes.css by hand, so there's no reason to add a second
+  // way of getting the same color.
+  const theme = THEMES.find(t => t.id === settings.themeId)
+  if (theme) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme.bg)
 }
 
 /**
