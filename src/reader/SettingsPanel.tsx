@@ -34,7 +34,7 @@ export function SettingsPanel({ view, tts, settings, onUpdate }: SettingsPanelPr
               className={`settings-panel__swatch${
                 settings.themeId === t.id ? ' settings-panel__swatch--active' : ''
               }`}
-              style={{ background: t.bg, color: t.fg }}
+              style={{ background: t.bg, color: t.fg, fontFamily: t.stack }}
               onClick={() => onUpdate({ themeId: t.id })}
               aria-label={t.name}
               aria-pressed={settings.themeId === t.id}
@@ -44,20 +44,27 @@ export function SettingsPanel({ view, tts, settings, onUpdate }: SettingsPanelPr
           ))}
         </div>
 
-        <label className="settings-panel__row">
-          Font
-          <select
-            value={settings.fontFamily}
-            onChange={e => onUpdate({ fontFamily: e.target.value as SettingsRecord['fontFamily'] })}
+        <div className="settings-panel__row">Font</div>
+        <div className="settings-panel__fonts">
+          <button
+            className={`settings-panel__font${settings.fontFamily === 'theme' ? ' settings-panel__font--active' : ''}`}
+            aria-pressed={settings.fontFamily === 'theme'}
+            onClick={() => onUpdate({ fontFamily: 'theme' })}
           >
-            <option value="theme">Theme default</option>
-            {FONTS.map(f => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            Theme default
+          </button>
+          {FONTS.map(f => (
+            <button
+              key={f.id}
+              className={`settings-panel__font${settings.fontFamily === f.id ? ' settings-panel__font--active' : ''}`}
+              style={{ fontFamily: f.stack }}
+              aria-pressed={settings.fontFamily === f.id}
+              onClick={() => onUpdate({ fontFamily: f.id })}
+            >
+              {f.name}
+            </button>
+          ))}
+        </div>
 
         <label className="settings-panel__row">
           Size

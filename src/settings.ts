@@ -6,11 +6,11 @@ import { getSettings, putSettings, type FontFamily, type SettingsRecord, type Th
 // colors reach the page (and the book) through those CSS custom
 // properties; this list exists only so the settings panel can render a
 // swatch for a theme that isn't the active one.
-export const THEMES: { id: ThemeId; name: string; bg: string; fg: string }[] = [
-  { id: 'paper', name: 'Paper', bg: '#fbfaf7', fg: '#1c1b19' },
-  { id: 'ink', name: 'Ink', bg: '#121316', fg: '#e4e2dd' },
-  { id: 'dusk', name: 'Dusk', bg: '#1e1b18', fg: '#d8cfc2' },
-  { id: 'slate', name: 'Slate', bg: '#edeef0', fg: '#22262b' },
+export const THEMES: { id: ThemeId; name: string; bg: string; fg: string; stack: string }[] = [
+  { id: 'paper', name: 'Paper', bg: '#fbfaf7', fg: '#1c1b19', stack: "'Literata', serif" },
+  { id: 'ink', name: 'Ink', bg: '#121316', fg: '#e4e2dd', stack: "'Source Serif 4', serif" },
+  { id: 'dusk', name: 'Dusk', bg: '#1e1b18', fg: '#d8cfc2', stack: "'Crimson Pro', serif" },
+  { id: 'slate', name: 'Slate', bg: '#edeef0', fg: '#22262b', stack: "'Atkinson Hyperlegible', sans-serif" },
 ]
 
 export const FONTS: { id: Exclude<FontFamily, 'theme'>; name: string; stack: string }[] = [
