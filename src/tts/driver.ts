@@ -24,9 +24,14 @@ interface Internal {
    * so the queue is dropped when its owner is no longer the current TTS.
    */
   tts: Tts | null
+  /** The engine instance that actually started the current utterance -- not
+   * necessarily engineFor(engineRef.current): activeEngine() can fall back
+   * to Web Speech while the settings still name Piper. stop() cancels this
+   * instance, never "whichever engine the dropdown currently names". */
+  engine: SpeechEngine | null
 }
 
-const EMPTY: Internal = { chunks: [], i: 0, gen: 0, tts: null }
+const EMPTY: Internal = { chunks: [], i: 0, gen: 0, tts: null, engine: null }
 
 // One instance per engine for the app's whole lifetime, not per hook call:
 // Web Speech is a global browser singleton regardless, and Piper's worker +
@@ -64,12 +69,23 @@ export function useTtsDriver(view: FoliateView | null) {
   const voiceRef = useRef<EngineVoice | null>(null)
   const engineRef = useRef<TtsEngine>('system')
 
+  // The single guard every stop-talking path routes through: cancels the
+  // engine instance that actually started the current utterance, not
+  // whichever engine the settings currently name (activeEngine() below can
+  // make those two differ routinely once the natural-voice fallback is in
+  // play). Bumping gen first, same as before, so the cancelled call's own
+  // completion callback can't double-advance the queue.
+  function stop() {
+    internal.current.gen++
+    internal.current.engine?.cancel()
+  }
+
   // A new `view` means a new book: forget the old queue and stop talking.
   useEffect(() => {
     internal.current = { ...EMPTY }
     setStatus('idle')
     return () => {
-      engineFor(engineRef.current).cancel()
+      stop()
     }
   }, [view])
 
@@ -124,15 +140,44 @@ export function useTtsDriver(view: FoliateView | null) {
     return getPiperEngine().onDownloadState(setPiperDownload)
   }, [engine])
 
-  // The natural voice's engine.speak() already refuses to synthesize before
-  // its opt-in download finishes, but a resolved speak() call still reads as
-  // "sentence done" to speakFrom's generation-guarded continuation -- so
-  // without this, pressing skip/play while un-downloaded would speak-run
-  // through the whole book near-instantly, one resolved-immediately call at
-  // a time. Checked at every entry point, not just play(): skip and
-  // "read this page" can start a queue from idle too.
-  function piperNotReady(): boolean {
-    return engineRef.current === 'natural' && getPiperEngine().getDownloadState().status !== 'ready'
+  // Media Session action handlers. `status` must be in the deps: the
+  // handlers close over `play()`, which reads `status` directly (its
+  // "resume from pause" branch) -- a `[view]`-only effect would pin the
+  // first render's closure and read `status === 'idle'` forever. Cheap to
+  // re-register on every status change.
+  useEffect(() => {
+    if (!view || !('mediaSession' in navigator)) return
+    navigator.mediaSession.setActionHandler('play', () => play())
+    navigator.mediaSession.setActionHandler('pause', () => pause())
+    navigator.mediaSession.setActionHandler('previoustrack', () => prevSentence())
+    navigator.mediaSession.setActionHandler('nexttrack', () => nextSentence())
+    return () => {
+      navigator.mediaSession.setActionHandler('play', null)
+      navigator.mediaSession.setActionHandler('pause', null)
+      navigator.mediaSession.setActionHandler('previoustrack', null)
+      navigator.mediaSession.setActionHandler('nexttrack', null)
+    }
+  }, [view, status])
+
+  // Keeps the lock-screen/notification transport state in sync so its
+  // play/pause icon doesn't disagree with the on-screen button.
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return
+    navigator.mediaSession.playbackState = status === 'playing' ? 'playing' : status === 'paused' ? 'paused' : 'none'
+  }, [status])
+
+  // The engine to actually speak the next sentence with. Natural falls back
+  // to the system voice until its download lands -- play is never refused --
+  // and auto-starts that download the first time it's needed, so pressing
+  // play on an undownloaded natural voice is the only gesture required.
+  // Re-evaluated per sentence, so playback upgrades to Piper mid-book, right
+  // after the download finishes, with no further user action.
+  function activeEngine(): SpeechEngine {
+    if (engineRef.current !== 'natural') return webSpeechEngine
+    const piper = getPiperEngine()
+    if (piper.getDownloadState().status === 'ready') return piper
+    piper.download() // idempotent -- no-ops while already downloading or ready
+    return webSpeechEngine // speak now with the system voice; switch over at the next sentence
   }
 
   function speakFrom(i: number) {
@@ -150,9 +195,10 @@ export function useTtsDriver(view: FoliateView | null) {
     const chunk = s.chunks[i]
     if (!chunk) return
     s.i = i
-    const myGen = ++s.gen
-    const active = engineFor(engineRef.current)
-    active.cancel() // completes the outgoing utterance immediately -- gen guards against it double-advancing
+    stop() // completes the outgoing utterance immediately -- gen guards against it double-advancing
+    const myGen = s.gen
+    const active = activeEngine()
+    s.engine = active
 
     void active
       .speak(chunk.text, {
@@ -189,7 +235,7 @@ export function useTtsDriver(view: FoliateView | null) {
   }
 
   async function play() {
-    if (!view || piperNotReady()) return
+    if (!view) return
     const s = internal.current
     // A queue belonging to a section we have since navigated away from can't
     // be resumed. Drop it here rather than let speakFrom bail, which would
@@ -217,13 +263,12 @@ export function useTtsDriver(view: FoliateView | null) {
     // pausing ran nextSentence() -- so the voice carried on to the next
     // sentence, scrollToAnchor dragged the page after it, and speakFrom set
     // the status straight back to 'playing'. Pause never actually paused.
-    internal.current.gen++
-    engineFor(engineRef.current).cancel()
+    stop()
     setStatus('paused')
   }
 
   async function nextSentence() {
-    if (!view || piperNotReady()) return
+    if (!view) return
     const s = internal.current
     if (s.i + 1 < s.chunks.length) {
       speakFrom(s.i + 1)
@@ -234,7 +279,7 @@ export function useTtsDriver(view: FoliateView | null) {
   }
 
   async function prevSentence() {
-    if (!view || piperNotReady()) return
+    if (!view) return
     const s = internal.current
     if (s.i - 1 >= 0) {
       speakFrom(s.i - 1)
@@ -249,7 +294,7 @@ export function useTtsDriver(view: FoliateView | null) {
   // and manual -- silently resyncing on every page turn would discard a
   // listening position just because the reader glanced at another page.
   async function readThisPage() {
-    if (!view?.lastLocation || piperNotReady()) return
+    if (!view?.lastLocation) return
     const tts = await ensureTts(view)
     load(tts, tts.from(view.lastLocation.range))
   }
@@ -258,20 +303,24 @@ export function useTtsDriver(view: FoliateView | null) {
     rateRef.current = next
     setRateState(next)
     void getSettings().then(s => putSettings({ ...s, ttsRate: next }))
+    // A rate baked into an already-playing utterance can't change mid-sentence
+    // (Web Speech) or mid-clip (Piper) -- restart the current sentence so the
+    // new rate is heard immediately instead of at the next sentence boundary.
+    if (status === 'playing') speakFrom(internal.current.i)
   }
 
   function setVoice(next: EngineVoice) {
     voiceRef.current = next
     setVoiceState(next)
     void getSettings().then(s => putSettings({ ...s, ttsVoiceURI: next.voiceId }))
+    if (status === 'playing') speakFrom(internal.current.i)
   }
 
   function setEngine(next: TtsEngine) {
     // Switching engines mid-sentence would otherwise leave the old engine
     // talking (or, for Piper, an <audio> element playing) underneath the new
-    // one -- cancel() first, same as skip/pause does.
-    engineFor(engineRef.current).cancel()
-    internal.current.gen++
+    // one -- stop() first, same as skip/pause does.
+    stop()
     engineRef.current = next
     setEngineState(next)
     setStatus('idle')

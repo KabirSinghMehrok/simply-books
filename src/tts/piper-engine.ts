@@ -32,10 +32,18 @@ export class PiperEngine implements SpeechEngine {
   constructor() {
     this.worker = new Worker(new URL('./piper.worker.ts', import.meta.url), { type: 'module' })
     this.worker.onmessage = (e: MessageEvent<WorkerToMain>) => this.handleMessage(e.data)
+    // Checks whether the model already survived a previous download into
+    // OPFS, so a reload doesn't reset to 'not-downloaded' for a model that's
+    // sitting right there. Reports ready without initializing the ONNX
+    // session -- that still happens lazily on the first predict() in the
+    // worker, adding a one-off ~1s local-only delay to the first sentence.
+    this.post({ type: 'check' })
   }
 
   private handleMessage(msg: WorkerToMain): void {
-    if (msg.type === 'progress') {
+    if (msg.type === 'stored') {
+      if (msg.has) this.setDownloadState({ status: 'ready' })
+    } else if (msg.type === 'progress') {
       this.setDownloadState({ status: 'downloading', loaded: msg.loaded, total: msg.total })
     } else if (msg.type === 'ready') {
       this.setDownloadState({ status: 'ready' })
@@ -169,7 +177,16 @@ export class PiperEngine implements SpeechEngine {
   }
 
   cancel(): void {
-    this.audio?.pause()
+    if (this.audio) {
+      this.audio.pause()
+      // A hard stop, not just pause(): removing the src and reloading aborts
+      // a still-pending play() deterministically, instead of leaving cancel()'s
+      // outcome racing that promise. This fires a benign 'error' into speak()'s
+      // `finish` listener below, which is already idempotent -- the revoke is
+      // guarded by `audioUrl === url`, and resolve() twice is a no-op.
+      this.audio.removeAttribute('src')
+      this.audio.load()
+    }
     this.audio = null
     // pause() fires neither 'ended' nor 'error', so finish() above never
     // runs for it -- without this, every pause/skip (the normal way
