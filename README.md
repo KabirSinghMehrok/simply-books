@@ -10,6 +10,8 @@ static files.
   IndexedDB, nothing leaves the browser
 - Reading view with keyboard, click-zone, and swipe navigation, plus a
   table of contents panel
+- Chapters start on a fresh page instead of running on from the previous
+  one's text, even for books that pack several chapters into one file
 - Settings panel: 4 reading themes (Paper/Ink/Dusk/Slate), font choice,
   size and line height, and single-page / two-page / scrolled layout —
   all applied live, mid-book. The browser's own chrome (address bar, and

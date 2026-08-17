@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { makeBook, type FoliateView, type Location, type Tts } from 'foliate-js/view.js'
+import { makeBook, type Book, type FoliateView, type Location, type TocItem, type Tts } from 'foliate-js/view.js'
 import 'foliate-js/view.js' // side effect: defines the <foliate-view> custom element
 import { Overlayer } from 'foliate-js/overlayer.js'
 import { textWalker } from 'foliate-js/text-walker.js'
@@ -36,6 +36,36 @@ function setLayout(view: FoliateView) {
   view.renderer.setAttribute('gap', '7%')
   view.renderer.setAttribute('margin', `${bookMargin()}px`)
   applyLayout(view, 'paginated', 2)
+}
+
+function flattenToc(items: TocItem[]): TocItem[] {
+  return items.flatMap(item => [item, ...flattenToc(item.subitems ?? [])])
+}
+
+/**
+ * Forces every chapter heading the book's own TOC points to (via a
+ * fragment into this section) to start a fresh column, instead of running
+ * on mid-page -- the only signal a book that packs several chapters into
+ * one XHTML file gives us. paginator.js has no page-spread/parity concept
+ * at all -- not even for whole spine items (fixed-layout.js is the only
+ * foliate-js renderer that reads EPUB3's own `section.pageSpread`) -- so
+ * this can only guarantee a fresh column, never specifically the left
+ * half of a two-page spread. A no-op for TOC entries pointing at a
+ * section's own start (no fragment -- resolveHref's anchor is the bare
+ * number 0, not an Element) or at a different section entirely.
+ */
+function markChapterStarts(book: Book, doc: Document, index: number): void {
+  for (const item of flattenToc(book.toc ?? [])) {
+    const resolved = book.resolveHref(item.href)
+    if (resolved?.index !== index) continue
+    // Not `instanceof HTMLElement`: `doc` is the section iframe's document,
+    // a separate realm, so its elements aren't instances of this window's
+    // HTMLElement (the trap CLAUDE.md already documents for interactions.ts).
+    // `typeof` is realm-independent and is enough to rule out the other two
+    // possible returns (the bare number 0, and null).
+    const el = resolved.anchor(doc)
+    if (el && typeof el === 'object') el.style.setProperty('break-before', 'column')
+  }
 }
 
 /**
@@ -120,6 +150,7 @@ export function useFoliate(
 
     el.addEventListener('load', ((e: CustomEvent<{ doc: Document; index: number }>) => {
       injectTheme(e.detail.doc)
+      markChapterStarts(el.book, e.detail.doc, e.detail.index)
       // Trap #5: pre-warm on `load`, never inside the play click handler --
       // initTTS is async (dynamic import) and iOS requires the first
       // speak() to happen synchronously inside a user gesture.

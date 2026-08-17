@@ -41,6 +41,12 @@
 - The browser's own chrome (Chrome's address bar, and on Android, the
   on-screen system navigation bar) now matches the active theme, via a
   `<meta name="theme-color">` tag kept in sync on every theme change
+- Chapters that begin mid-file (packed into a larger XHTML section rather
+  than their own spine item) now always start a fresh column instead of
+  running on from the previous chapter's text, using the book's own TOC
+  to find them. Doesn't guarantee the left half of a two-page spread
+  specifically — see Architecture notes for why that's a materially
+  bigger feature, deliberately not built
 - Not shipped: the web app manifest needed for audio to survive
   backgrounding/lock on iOS (a plain Safari tab pauses on lock; only an
   installed PWA gets parity) — still in "What's left" below
@@ -298,6 +304,32 @@ it's the only neural option that also runs acceptably on mobile.
   covers the ordinary browser-tab case; an installed PWA's status bar
   reads a manifest's `theme_color` instead, which doesn't exist yet (no
   manifest — see "What's left").
+- **`paginator.js` has no page-spread/parity concept, for any content
+  type.** EPUB3 has a real standard for this — `rendition:page-spread-
+  left/right/center`, which `epub.js` already parses into
+  `section.pageSpread` — but grepping every renderer in foliate-js shows
+  only `fixed-layout.js` (comics/picture books) ever reads that field;
+  the reflowable renderer we use ignores it completely, even at the
+  whole-spine-item level. So a chapter heading buried mid-file (no
+  spine-item boundary to anchor to) has no library-level hook for "start
+  on a fresh page," only the book's own TOC to fall back on: `useFoliate.ts`'s
+  `markChapterStarts()` resolves every TOC entry's fragment via
+  `book.resolveHref()` and sets `break-before: column` directly on the
+  matching element when its section loads. That's a real fix for a
+  chapter running on mid-page, but not for which half of a two-page
+  spread it lands in — guaranteeing specifically the left page would mean
+  measuring post-layout column position and conditionally inserting a
+  blank filler column, reactively, on every reflow (resize, font/size/
+  margin change) — a genuinely bigger feature with no library primitive
+  to lean on anywhere, deliberately not built here.
+- **`resolveHref`'s anchor return crosses the iframe realm boundary --
+  `instanceof` doesn't work on it.** Same trap `interactions.ts` already
+  documents for click targets: the section doc is a separate browsing
+  context, so an element `anchor(doc)` resolves there is not an instance
+  of this window's `HTMLElement`. `markChapterStarts()` duck-types with
+  `typeof el === 'object'` instead (also ruling out the other two
+  possible returns, `null` and the bare number `0` for a fragment-less
+  href) -- `typeof` doesn't care which realm the object came from.
 - **Highlights vanish on navigation unless redrawn by hand.** `view.js`'s
   `#createOverlayer` re-adds *search* results on a section reload
   (`create-overlay` fires after it), but never touches user annotations —

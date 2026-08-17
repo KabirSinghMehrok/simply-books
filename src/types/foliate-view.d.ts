@@ -40,6 +40,10 @@ export interface Book {
   toc?: TocItem[]
   sections: unknown[]
   getCover(): Promise<Blob | null>
+  /** Null if `href`'s path matches no spine item. `anchor(doc)` is the bare
+   * number 0 for a fragment-less href (the section's own start), or the
+   * fragment's element (null if the id doesn't exist in `doc`). */
+  resolveHref(href: string): { index: number; anchor(doc: Document): HTMLElement | number | null } | null
 }
 export function makeBook(file: File | Blob | string): Promise<Book>
 
