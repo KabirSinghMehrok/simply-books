@@ -15,9 +15,16 @@ static files.
   all applied live, mid-book
 - Text-to-speech that reads sentence by sentence, highlights the sentence
   being spoken, and turns the page on its own as it goes
+- Two TTS engines: the browser's built-in voices (System), or an opt-in
+  natural voice (Piper, ~63 MB, downloaded once and cached in the browser).
+  Pressing play on an undownloaded natural voice starts that download
+  automatically and reads with the system voice in the meantime, switching
+  over once it's ready
 - Play/pause, skip to the previous/next sentence, and a "read this page"
   button that restarts reading from whatever's currently on screen
   (independent of where playback last stopped)
+- Lock-screen / notification playback controls (Media Session) — play,
+  pause, and skip from outside the browser tab
 - A reading progress rail you can click to jump to any point in the book
 - Resumes exactly where you left off after a refresh
 - Highlights (4 colors) and notes — select text for a color/note toolbar,
@@ -32,7 +39,7 @@ static files.
 | UI | React 19 + TypeScript, plain CSS (no framework) |
 | Build | Vite |
 | EPUB rendering | [foliate-js](https://github.com/johnfactotum/foliate-js) |
-| Text-to-speech | Browser-native Web Speech API |
+| Text-to-speech | Browser-native Web Speech API, plus [Piper](https://github.com/rhasspy/piper) (via `@mintplex-labs/piper-tts-web`) as an opt-in natural voice, running in a Web Worker |
 | Storage | IndexedDB via [`idb`](https://github.com/jakearchibald/idb) |
 | Icons | [lucide-react](https://lucide.dev) |
 
@@ -75,7 +82,11 @@ src/
     Toc.tsx                 table of contents panel
   tts/
     ssml.ts                 parses foliate-js's per-sentence SSML output
-    driver.ts               the TTS playback state machine
+    driver.ts               the TTS playback state machine, engine-agnostic
+    engine.ts                the SpeechEngine interface + Web Speech implementation
+    piper-engine.ts          main-thread half of the Piper (natural voice) engine
+    piper.worker.ts          runs Piper/ONNX inference off the main thread
+    piper-protocol.ts        message types shared by piper-engine.ts and piper.worker.ts
   types/
     foliate-view.d.ts       hand-written types for foliate-js (it ships none)
     foliate-epubcfi.d.ts    hand-written types for foliate-js's CFI module

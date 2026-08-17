@@ -1,7 +1,8 @@
 # CLAUDE.md
 
 Simply Book: a free, fully client-side EPUB reader with TTS. No backend, no
-accounts. React + Vite + TS + foliate-js + Web Speech API + IndexedDB.
+accounts. React + Vite + TS + foliate-js + Web Speech API + Piper (opt-in
+natural voice) + IndexedDB.
 
 ## Keep docs in sync
 
@@ -44,6 +45,14 @@ Verify against `node_modules/foliate-js/*.js` source, not memory or docs.
 - **Layout attributes go on `view.renderer`, not `view`.**
   `view.setAttribute('flow', ...)` — what the README shows — is a silent
   no-op.
+- **Renderer layout attribute *values* need real CSS units.** The
+  paginator's shadow stylesheet computes `grid-template-columns`/`-rows`
+  via `calc()` against the custom properties these attributes feed —
+  `setAttribute('max-inline-size', '720')` (no `px`) makes that `calc()`
+  invalid, silently voiding the whole grid. `parseFloat('720')` is still
+  `720`, so the JS-side layout math stays correct and nothing throws — the
+  book just renders in an auto-sized implicit row. Always pass units:
+  `'720px'`, `'7%'`, `` `${n}px` ``.
 - **Metadata shapes collapse.** `epub.js`'s `tidy()` step turns a
   single-item array into its bare element, and an object whose only key is
   `name` into that name. `metadata.author` is a `Contributor[]` only for

@@ -1,5 +1,44 @@
 # Roadmap
 
+## Status: v1 Phase D shipped
+
+- Piper as an opt-in natural voice: a `SpeechEngine` abstraction shared with
+  Web Speech, Piper running in a Web Worker with the model self-hosted and
+  cached in OPFS, one-sentence-ahead prefetch so there's no audible gap at
+  sentence boundaries, and the System/Natural toggle in the settings panel
+  with a visible download-progress row
+- Pressing play on an undownloaded natural voice now auto-starts that ~63 MB
+  download and speaks with the system voice meanwhile, upgrading to Piper at
+  the next sentence boundary once it lands — no separate "download" gesture
+  required. A model that survived a previous download (OPFS) is detected on
+  load, so a reload doesn't forget it and re-fetch
+- Mobile notification / lock-screen transport controls via the Media
+  Session API: play/pause/previous/next drive the same state machine as the
+  on-screen buttons, and the notification's play/pause icon stays in sync
+  with actual playback state
+- Fixed: the paginator's layout attributes (`max-inline-size`, `gap`,
+  `margin`) were being set without CSS units, which silently voided the
+  shadow-DOM grid and left the book stretched into an auto-sized row
+  instead of filling the viewport — see Architecture notes. The margin is
+  now viewport-relative and follows window resize/rotation
+  live
+- Fixed: cancelling playback (pause, skip, engine switch) now always targets
+  the engine instance that actually started the current utterance, not
+  whichever engine the settings currently name — those two can differ once
+  the natural-voice fallback is in play. Piper's own `cancel()` is a hard
+  stop (aborts a pending `play()` deterministically) instead of a bare
+  `pause()` racing it
+- Fixed: changing the voice or rate mid-sentence now restarts that sentence
+  immediately in the new voice/rate, instead of silently waiting for the
+  next sentence to pick it up
+- Settings panel: no more horizontal scrollbar from a long voice name or
+  narrow viewport, repositioned to sit above the bottom bar instead of the
+  top, and font choices render as buttons in their own real typeface
+  instead of a plain `<select>`
+- Not shipped: the web app manifest needed for audio to survive
+  backgrounding/lock on iOS (a plain Safari tab pauses on lock; only an
+  installed PWA gets parity) — still in "What's left" below
+
 ## Status: v1 Phase B shipped
 
 - Highlights (4 colors) via a selection toolbar, persisted in IndexedDB,
@@ -202,12 +241,27 @@ it's the only neural option that also runs acceptably on mobile.
   static-weight only); the local `@font-face` renames it back to "Atkinson
   Hyperlegible" so `themes.css`'s existing `--book-font` value didn't need
   to change.
-- **The Voice group's "System / Natural" engine toggle from the plan isn't
-  in the settings panel yet.** Only Web Speech exists until Piper ships in
-  Phase D — a selector with one real option and one disabled placeholder
-  would be exactly the kind of config knob `CLAUDE.md` says not to add
-  before it's needed. Rate and voice pickers are there; the engine choice
-  arrives with Piper.
+- **Renderer layout attributes need real CSS units.** `useFoliate.ts`'s
+  `setLayout()` was setting `max-inline-size`/`gap`/`margin` to bare numbers
+  (`'720'`, `'7'`, `'48'`). `paginator.js`'s `attributeChangedCallback`
+  copies each straight into a custom property, and its shadow stylesheet
+  computes `grid-template-columns`/`-rows` from those via `calc()` —
+  `calc(720 * 2)` is invalid, so the whole grid silently computed to `none`.
+  `parseFloat('720')` is still `720`, so the JS-side column-width/gap math
+  stayed correct and nothing threw: the book just rendered in an
+  auto-sized implicit row instead of filling the viewport. Exactly the
+  class of silent failure this file already warns about — verified against
+  `paginator.js`'s own default CSS (`--_max-inline-size: 720px`, not
+  `720`), not assumed from the JS side working.
+- **A Media Session action handler effect must include the state it reads
+  in its deps, not just the ref-backed values.** The `play`/`pause`
+  handlers close over `play()`, which reads `status` directly (its
+  "resume from pause" branch) rather than through a ref. A `[view]`-only
+  effect would register once and pin that first render's closure forever,
+  so the lock-screen play button would permanently believe `status` was
+  `'idle'`. `driver.ts` keys the effect on `[view, status]` instead —
+  cheap to re-register on every status change, and the only way the
+  handler's closure stays current.
 - **Highlights vanish on navigation unless redrawn by hand.** `view.js`'s
   `#createOverlayer` re-adds *search* results on a section reload
   (`create-overlay` fires after it), but never touches user annotations —
@@ -265,12 +319,10 @@ browser with a real book before it's believed.
 
 ## What's left
 
-### v1 — Phases A and B shipped, rest not started
+### v1 — Phases A, B and D shipped, rest not started
 - In-book search
-- Piper as an opt-in natural voice, running in a worker, plus the "System
-  / Natural" engine toggle in the settings panel
-- Mobile notification / lock-screen TTS controls (Media Session) + web
-  app manifest
+- Web app manifest, for iOS lock-screen audio parity — a plain Safari tab
+  still pauses on screen lock; only an installed PWA doesn't
 - Mobile layout polish (single-column is automatic via CSS container
   queries; touch target sizing and layout polish are not done)
 
@@ -283,8 +335,6 @@ browser with a real book before it's believed.
 
 ### v2 — not started
 - Settings sync polish
-- Piper as an opt-in "natural voice" — a one-time ~40–70 MB download,
-  the only neural TTS option that also works on mobile
 
 ### v3 — not started
 - Google Drive / OneDrive import and sync
