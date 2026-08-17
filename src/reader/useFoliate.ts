@@ -21,10 +21,20 @@ export function applyLayout(view: FoliateView, flow: Flow, columns: 1 | 2): void
   view.renderer.setAttribute('max-column-count', String(columns))
 }
 
+// Trap #7: these values need real CSS units. paginator.js's shadow
+// stylesheet computes grid-template-columns/-rows via calc() against the
+// custom properties these attributes feed -- calc(720 * 2) is invalid, so
+// a unitless '720' voids the whole grid while parseFloat('720') (the JS
+// half, for column-width/gap math) stays happy. No error, just a book
+// that renders in an implicit auto-sized row. See CLAUDE.md.
+function bookMargin(): number {
+  return Math.round(Math.min(56, Math.max(24, window.innerHeight * 0.05)))
+}
+
 function setLayout(view: FoliateView) {
-  view.renderer.setAttribute('max-inline-size', '720')
-  view.renderer.setAttribute('gap', '7')
-  view.renderer.setAttribute('margin', '48')
+  view.renderer.setAttribute('max-inline-size', '720px')
+  view.renderer.setAttribute('gap', '7%')
+  view.renderer.setAttribute('margin', `${bookMargin()}px`)
   applyLayout(view, 'paginated', 2)
 }
 
@@ -197,6 +207,25 @@ export function useFoliate(
     if (!view || !settings) return
     applyLayout(view, settings.flow, settings.columns)
   }, [view, settings?.flow, settings?.columns])
+
+  // Keeps the margin viewport-relative as the window resizes/rotates.
+  // The clamp in bookMargin() is its own debounce (most resizes don't
+  // cross a clamp boundary), and the paginator's own ResizeObserver
+  // already re-renders on size change -- this effect exists solely to
+  // keep the margin *value* current, not to trigger a re-render itself.
+  useEffect(() => {
+    if (!view) return
+    const renderer = view.renderer
+    let last = bookMargin()
+    function onResize() {
+      const next = bookMargin()
+      if (next === last) return
+      last = next
+      renderer.setAttribute('margin', `${next}px`)
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [view])
 
   // Re-injects theme/font/scale/line-height into whatever section doc is
   // currently loaded. `injectTheme` reads the resolved values itself (via
