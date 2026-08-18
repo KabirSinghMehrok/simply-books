@@ -43,6 +43,27 @@ function flattenToc(items: TocItem[]): TocItem[] {
 }
 
 /**
+ * Real EPUBs (checked against an actual multi-chapter-per-file book, not
+ * assumed) mark a chapter start with an *empty* anchor immediately before
+ * the heading -- `<p><a id="p2"></a><b>DREAMS OF DESTINY</b></p>` -- and
+ * `<a>` is inline. `break-before` only applies to block-level boxes (CSS
+ * Fragmentation), so setting it on the anchor itself is a silent no-op --
+ * exactly the failure mode this codebase keeps running into with foliate-js,
+ * just self-inflicted this time. Deliberately not resolved via
+ * `getComputedStyle`: this runs inside the section iframe's `load` handler,
+ * before the library makes that iframe visible again (its own comment a few
+ * lines down its source flags computed-style reads as unreliable there,
+ * for exactly that reason) -- a purely structural check sidesteps it. An
+ * anchor with real text content (the id placed directly on the heading
+ * instead) is left alone; it's already block-level.
+ */
+function chapterBreakTarget(el: HTMLElement): HTMLElement {
+  const parent = el.parentElement
+  if (!el.textContent?.trim() && parent && parent.tagName !== 'BODY') return parent
+  return el
+}
+
+/**
  * Forces every chapter heading the book's own TOC points to (via a
  * fragment into this section) to start a fresh column, instead of running
  * on mid-page -- the only signal a book that packs several chapters into
@@ -64,7 +85,7 @@ function markChapterStarts(book: Book, doc: Document, index: number): void {
     // `typeof` is realm-independent and is enough to rule out the other two
     // possible returns (the bare number 0, and null).
     const el = resolved.anchor(doc)
-    if (el && typeof el === 'object') el.style.setProperty('break-before', 'column')
+    if (el && typeof el === 'object') chapterBreakTarget(el).style.setProperty('break-before', 'column')
   }
 }
 

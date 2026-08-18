@@ -314,14 +314,33 @@ it's the only neural option that also runs acceptably on mobile.
   spine-item boundary to anchor to) has no library-level hook for "start
   on a fresh page," only the book's own TOC to fall back on: `useFoliate.ts`'s
   `markChapterStarts()` resolves every TOC entry's fragment via
-  `book.resolveHref()` and sets `break-before: column` directly on the
-  matching element when its section loads. That's a real fix for a
-  chapter running on mid-page, but not for which half of a two-page
-  spread it lands in — guaranteeing specifically the left page would mean
-  measuring post-layout column position and conditionally inserting a
-  blank filler column, reactively, on every reflow (resize, font/size/
-  margin change) — a genuinely bigger feature with no library primitive
-  to lean on anywhere, deliberately not built here.
+  `book.resolveHref()` and sets `break-before: column` on the matching
+  element when its section loads. That's a real fix for a chapter running
+  on mid-page, but not for which half of a two-page spread it lands in —
+  guaranteeing specifically the left page would mean measuring
+  post-layout column position and conditionally inserting a blank filler
+  column, reactively, on every reflow (resize, font/size/margin change) —
+  a genuinely bigger feature with no library primitive to lean on
+  anywhere, deliberately not built here.
+- **The TOC's chapter anchor is conventionally empty and inline —
+  `break-before` on it is a no-op.** Checked against a real
+  multi-chapter-per-file book, not assumed: chapter markers came as
+  `<p><a id="p2"></a><b>DREAMS OF DESTINY</b></p>` — an empty `<a>`
+  immediately before the heading text, and `<a>` is inline by default.
+  CSS Fragmentation's `break-before`/`break-after` only apply to
+  block-level boxes, so the first version of `markChapterStarts()` set
+  the property on that inline anchor and it silently did nothing — no
+  error, chapters just kept running on, the exact class of failure this
+  codebase keeps hitting with foliate-js, self-inflicted this time.
+  `chapterBreakTarget()` targets the anchor's parent instead whenever the
+  anchor itself has no text content (i.e., it's a bare marker, not the
+  heading), which is what actually contains the heading in that markup
+  pattern. Deliberately not resolved via `getComputedStyle` to check
+  inline-vs-block properly: this runs inside the section iframe's `load`
+  handler, before `paginator.js` makes that iframe visible again (its own
+  source has a comment flagging computed-style reads as unreliable there,
+  for Firefox specifically) — a purely structural check (does the anchor
+  have text content?) sidesteps needing computed style at all.
 - **`resolveHref`'s anchor return crosses the iframe realm boundary --
   `instanceof` doesn't work on it.** Same trap `interactions.ts` already
   documents for click targets: the section doc is a separate browsing
