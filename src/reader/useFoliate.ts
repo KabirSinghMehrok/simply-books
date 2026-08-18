@@ -74,6 +74,15 @@ function chapterBreakTarget(el: HTMLElement): HTMLElement {
  * half of a two-page spread. A no-op for TOC entries pointing at a
  * section's own start (no fragment -- resolveHref's anchor is the bare
  * number 0, not an Element) or at a different section entirely.
+ *
+ * Also tags the same element `sb-chapter-title` -- theme-inject.ts styles
+ * that class in its own display face, distinct from the running body
+ * text. Deliberately scoped to only what the TOC anchors resolve to a
+ * real element: a book whose TOC links have no fragment at all (rare --
+ * usually only when every chapter is already its own spine item) gets
+ * neither the break nor the heading styling, rather than guessing which
+ * element is "the heading" from tag names alone, which real (especially
+ * auto-converted) books don't mark reliably -- see chapterBreakTarget.
  */
 function markChapterStarts(book: Book, doc: Document, index: number): void {
   for (const item of flattenToc(book.toc ?? [])) {
@@ -85,7 +94,10 @@ function markChapterStarts(book: Book, doc: Document, index: number): void {
     // `typeof` is realm-independent and is enough to rule out the other two
     // possible returns (the bare number 0, and null).
     const el = resolved.anchor(doc)
-    if (el && typeof el === 'object') chapterBreakTarget(el).style.setProperty('break-before', 'column')
+    if (!el || typeof el !== 'object') continue
+    const target = chapterBreakTarget(el)
+    target.style.setProperty('break-before', 'column')
+    target.classList.add('sb-chapter-title')
   }
 }
 

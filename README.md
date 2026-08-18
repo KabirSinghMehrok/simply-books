@@ -11,7 +11,9 @@ static files.
 - Reading view with keyboard, click-zone, and swipe navigation, plus a
   table of contents panel
 - Chapters start on a fresh page instead of running on from the previous
-  one's text, even for books that pack several chapters into one file
+  one's text, even for books that pack several chapters into one file,
+  and are set in their own display face (Fraunces, or Instrument Sans on
+  Slate) distinct from the running body text
 - Settings panel: 4 reading themes (Paper/Ink/Dusk/Slate), font choice,
   size and line height, and single-page / two-page / scrolled layout —
   all applied live, mid-book. The browser's own chrome (address bar, and
@@ -107,4 +109,5 @@ The build output (`dist/`) is fully static — any static host works
 Project code has no license file yet — treat as all rights reserved until
 one is added. Third-party: foliate-js is MIT-licensed; the bundled fonts
 (Instrument Sans, Literata, Source Serif 4, Crimson Pro, Atkinson
-Hyperlegible) are SIL Open Font License 1.1 — see `public/fonts/OFL-*.txt`.
+Hyperlegible, Fraunces) are SIL Open Font License 1.1 — see
+`public/fonts/OFL-*.txt`.

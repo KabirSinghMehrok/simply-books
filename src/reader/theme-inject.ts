@@ -34,6 +34,7 @@ export function injectTheme(doc: Document): void {
   const fg = root.getPropertyValue('--fg').trim()
   const accent = root.getPropertyValue('--accent').trim()
   const bookFont = root.getPropertyValue('--book-font').trim()
+  const headingFont = root.getPropertyValue('--heading-font').trim()
   const fontScale = parseFloat(root.getPropertyValue('--font-scale')) || 1
   const lineHeight = root.getPropertyValue('--line-height').trim() || '1.6'
 
@@ -54,6 +55,27 @@ export function injectTheme(doc: Document): void {
     ::highlight(tts-spoken) {
       text-decoration: underline solid ${accent} 2px;
       text-underline-offset: 3px;
+    }
+    /* Chapter titles (marked by useFoliate.ts's markChapterStarts, via the
+       book's own TOC) get a display face distinct from the running body
+       text -- Fraunces for the 3 serif themes, Instrument Sans for Slate,
+       see --heading-font in themes.css. */
+    .sb-chapter-title {
+      font-family: ${headingFont} !important;
+      font-weight: 600 !important;
+      font-size: 1.6em !important;
+      line-height: 1.25 !important;
+      letter-spacing: 0.01em !important;
+      text-align: center !important;
+      margin: 0.2em 0 0.7em !important;
+    }
+    .sb-chapter-title::after {
+      content: '';
+      display: block;
+      width: 2.5em;
+      height: 2px;
+      margin: 0.6em auto 0;
+      background: ${accent};
     }
   `
   doc.head.append(style)

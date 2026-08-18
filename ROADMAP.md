@@ -47,6 +47,10 @@
   to find them. Doesn't guarantee the left half of a two-page spread
   specifically — see Architecture notes for why that's a materially
   bigger feature, deliberately not built
+- Every chapter heading found this way is now set in its own display
+  face (Fraunces for the 3 serif themes, Instrument Sans -- already
+  loaded for the chrome -- for Slate), centered, with a thin accent-color
+  rule beneath it, distinct from the running body text in every theme
 - Not shipped: the web app manifest needed for audio to survive
   backgrounding/lock on iOS (a plain Safari tab pauses on lock; only an
   installed PWA gets parity) — still in "What's left" below
@@ -341,6 +345,32 @@ it's the only neural option that also runs acceptably on mobile.
   source has a comment flagging computed-style reads as unreliable there,
   for Firefox specifically) — a purely structural check (does the anchor
   have text content?) sidesteps needing computed style at all.
+- **EPUB has a real semantic vocabulary for quotes/verse/epigraphs
+  (`epub:type`), but it's essentially unused in the wild.** EPUB3's
+  Structural Semantics Vocabulary defines `epub:type` values like
+  `epigraph`, `verse`, `dedication`; foliate-js's `footnotes.js` parses
+  it (for footnote refs), but this app doesn't import that module, and
+  the one real book checked for it has none of that -- nor `blockquote`,
+  `<q>`, or `<cite>`. Everything in it, including the chapter titles, is
+  flattened into meaningless `class="calibre1"`/`"calibre3"` markup from
+  a PDF-to-HTML conversion. Any future styling keyed on `epub:type` or
+  even plain `<blockquote>` will be a real, zero-cost enhancement for
+  well-produced EPUBs and a complete no-op for auto-converted ones like
+  this -- worth doing, but not against an unverified guess; wait for a
+  real book that actually uses it.
+- **Heading font choice: one face per body-font category, not per theme,
+  and not the chrome font for the serif themes.** Paper/Ink/Dusk all
+  have serif body fonts (Literata/Source Serif 4/Crimson Pro) but each
+  needed the *same* heading face to read as a deliberate, consistent
+  editorial choice rather than 3 different pairings of varying luck --
+  reusing any of the 3 body fonts themselves was ruled out because it'd
+  be invisible in whichever theme it's also the body font. Fraunces (new,
+  self-hosted the same way as the other 4 -- latin-subset variable
+  woff2 + OFL text) fills that role; Slate's sans body (Atkinson
+  Hyperlegible) reuses Instrument Sans, already loaded for the chrome, so
+  the sans bucket costs nothing new. `--heading-font` in `themes.css`
+  follows the same "computed value read back via `getComputedStyle` in
+  `theme-inject.ts`" path as `--book-font` already established.
 - **`resolveHref`'s anchor return crosses the iframe realm boundary --
   `instanceof` doesn't work on it.** Same trap `interactions.ts` already
   documents for click targets: the section doc is a separate browsing

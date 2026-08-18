@@ -48,6 +48,21 @@
     U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215;
 }
 
+/* Chapter-heading display face for the 3 serif themes -- deliberately not
+   one of the 4 book fonts above: it needs to read as distinct from
+   whichever one is the active theme's own body face, in every theme, not
+   just 3 of the 4. Slate reuses Instrument Sans (already loaded for the
+   chrome) instead -- see --heading-font below. */
+@font-face {
+  font-family: 'Fraunces';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/Fraunces-Variable.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215;
+}
+
 /*
  * Reading identities, not brightness levels — see plan "The 4 themes".
  */
@@ -56,6 +71,7 @@
   --fg: #1c1b19;
   --accent: #0f5c4c;
   --book-font: 'Literata', serif;
+  --heading-font: 'Fraunces', serif;
   --font-scale: 1;
   --line-height: 1.6;
 }
@@ -79,6 +95,7 @@
   --fg: #22262b;
   --accent: #3b5bdb;
   --book-font: 'Atkinson Hyperlegible', sans-serif;
+  --heading-font: 'Instrument Sans', sans-serif;
 }
 
 :root {
