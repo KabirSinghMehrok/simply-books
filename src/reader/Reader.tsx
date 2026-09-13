@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { StickyNote } from 'lucide-react'
 import type { AnnotationRecord, SettingsRecord } from '../library/db'
 import { useTtsDriver } from '../tts/driver'
 import { Chrome } from './Chrome'
@@ -164,13 +165,15 @@ export function Reader({ bookId, settings, onUpdateSettings, onClose }: ReaderPr
             <button
               key={marker.id}
               className="reader__note-marker"
-              style={{ left: marker.left, top: marker.top, background: marker.color }}
+              style={{ left: marker.left, top: marker.top, color: marker.color }}
               aria-label="Open note"
               onClick={() => {
                 const record = annotations.find(a => a.id === marker.id)
                 if (record) setNoteTarget({ kind: 'edit', record })
               }}
-            />
+            >
+              <StickyNote size={16} />
+            </button>
           ))}
         </>
       )}

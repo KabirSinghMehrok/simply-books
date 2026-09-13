@@ -69,6 +69,15 @@
   justify-content: flex-end;
 }
 
+/* The playback cluster reads as one media control island, set apart from
+   the plain icon groups (nav, search/settings) around it -- not just
+   another set of icons in the same row. */
+.chrome__group--playback {
+  border: 1px solid var(--hairline);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
 .chrome__icon {
   display: flex;
   padding: 8px;

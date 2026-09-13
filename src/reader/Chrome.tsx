@@ -102,7 +102,7 @@ export function Chrome({
           {group(navGroup)}
           <div className="chrome__title">{title}</div>
           <div className="chrome__group chrome__group--right">
-            {playbackGroup}
+            {group(playbackGroup, 'chrome__group--playback')}
             {utilityGroup}
             {closeButton}
           </div>

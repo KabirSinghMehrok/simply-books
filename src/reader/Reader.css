@@ -20,9 +20,13 @@
 .reader__note-marker {
   position: fixed;
   z-index: 15;
-  width: 10px;
-  height: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  border: 1px solid rgb(0 0 0 / 0.3);
+  background: var(--bg);
+  border: 1px solid currentColor;
   transform: translate(2px, -50%);
 }
