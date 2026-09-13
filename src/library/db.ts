@@ -22,6 +22,10 @@ export interface AnnotationRecord {
   bookId: string
   cfi: string
   text: string
+  /** A word or two of surrounding text, for the highlights panel -- absent
+   * on records written before that feature existed. */
+  contextBefore?: string
+  contextAfter?: string
   color: string
   note: string | null
   createdAt: number

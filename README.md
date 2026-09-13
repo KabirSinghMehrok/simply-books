@@ -35,6 +35,9 @@ static files.
 - Highlights (4 colors) and notes — select text for a color/note toolbar,
   overlapping highlights merge (new color wins, notes concatenate), and
   highlights survive navigating away and back
+- A Highlights & Notes panel listing every highlight in reading order, each
+  shown with a word or two of surrounding context; note-bearing ones show
+  the note too (truncated to 50 words) — click one to jump straight to it
 - In-book search: a bar with a live match count ("x of y"), next/previous
   buttons, and a case-sensitivity toggle
 - See [ROADMAP.md](ROADMAP.md) for what's next

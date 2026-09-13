@@ -1,5 +1,18 @@
 # Roadmap
 
+## Status: v1 Phase F shipped
+
+- A Highlights & Notes panel (chrome top bar, new highlighter icon next to
+  the TOC button): every highlight in the book, sorted into reading order
+  via `epubcfi.js`'s own `compare()`, each shown with a word or two of
+  context on either side; a note-bearing highlight also shows its note,
+  truncated to 50 words. Clicking an entry jumps to it and closes the
+  panel, same as a TOC entry
+- Context words are captured once, when a highlight is made (or merged),
+  and stored on the `AnnotationRecord` -- not resolved live when the panel
+  opens. Highlights made before this shipped just show with no context
+  rather than needing a backfill pass
+
 ## Status: v1 Phase E shipped
 
 - In-book search: a search bar (chrome top bar, new search icon) built
@@ -432,6 +445,24 @@ it's the only neural option that also runs acceptably on mobile.
   it (see below): search results are transient for the life of one query,
   not saved, and `clearSearch()` is called both when the query is emptied
   and when the search bar closes/unmounts.
+- **A highlight's surrounding context is captured by walking `TreeWalker`
+  hops across text nodes, not by assuming the boundary text node has
+  enough words.** A highlight starting or ending right at an inline
+  element's edge (a footnote marker, an `<em>`) has an empty remainder in
+  its own text node -- `Highlights.tsx`'s context capture (in
+  `useAnnotations.ts`) hops to the next/previous text node via the same
+  `document.createTreeWalker` primitive foliate-js's own `text-walker.js`
+  builds on, until it has enough words or a small hop cap is hit, rather
+  than stopping dead at that boundary.
+- **Rendering that context next to the highlighted text needs a
+  punctuation check, not a hardcoded space.** A highlight's stored end
+  offset routinely lands immediately before a `.`/`,` with no space in the
+  source ("...circulation. Whenever..."), so unconditionally inserting a
+  space before the trailing context produced "circulation . Whenever" --
+  wrong, and only visible by actually reading a highlight made from real
+  prose, not from the word counts alone. `Highlights.tsx` checks whether
+  the context starts (or, on the leading side, ends) with punctuation
+  before deciding whether a space belongs there.
 - **A note's floating indicator has to be recomputed on every page turn,
   not cached from when the highlight was drawn.** This one isn't in the
   plan: a section's iframe is viewport-sized, but paginated mode pans its
@@ -471,7 +502,7 @@ browser with a real book before it's believed.
 
 ## What's left
 
-### v1 — Phases A, B, D and E shipped, rest not started
+### v1 — Phases A, B, D, E and F shipped, rest not started
 - Web app manifest, for iOS lock-screen audio parity — a plain Safari tab
   still pauses on screen lock; only an installed PWA doesn't
 - Mobile layout polish (single-column is automatic via CSS container

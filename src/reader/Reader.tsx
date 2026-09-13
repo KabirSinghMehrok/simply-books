@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AnnotationRecord, SettingsRecord } from '../library/db'
 import { useTtsDriver } from '../tts/driver'
 import { Chrome } from './Chrome'
+import { Highlights } from './Highlights'
 import { attachClickZones, attachKeys, type SelectionInfo } from './interactions'
 import { NoteEditor } from './NoteEditor'
 import { Rail } from './Rail'
@@ -30,6 +31,7 @@ interface ReaderProps {
 export function Reader({ bookId, settings, onUpdateSettings, onClose }: ReaderProps) {
   const [chromeVisible, setChromeVisible] = useState(true)
   const [tocOpen, setTocOpen] = useState(false)
+  const [highlightsOpen, setHighlightsOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [selection, setSelection] = useState<(SelectionInfo & { index: number }) | null>(null)
   const [noteTarget, setNoteTarget] = useState<NoteTarget | null>(null)
@@ -126,10 +128,14 @@ export function Reader({ bookId, settings, onUpdateSettings, onClose }: ReaderPr
             tts={tts}
             visible={chromeVisible}
             onToggleToc={() => setTocOpen(o => !o)}
+            onToggleHighlights={() => setHighlightsOpen(o => !o)}
             onToggleSearch={() => setSearchOpen(o => !o)}
             onClose={onClose}
           />
           {tocOpen && <Toc view={view} onClose={() => setTocOpen(false)} />}
+          {highlightsOpen && (
+            <Highlights view={view} annotations={annotations} onClose={() => setHighlightsOpen(false)} />
+          )}
           {searchOpen && <Search view={view} onClose={() => setSearchOpen(false)} />}
           {settings && (
             <SettingsPanel view={view} tts={tts} settings={settings} onUpdate={onUpdateSettings} />

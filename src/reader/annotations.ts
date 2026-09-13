@@ -64,6 +64,22 @@ export function planMerge(
   return { note, startBoundaryCfi: earliest.cfi, endBoundaryCfi: latest.cfi }
 }
 
+// ---- word-count helpers, shared by context capture and the notes panel ---
+
+export function lastWords(text: string, n: number): string {
+  return text.trim().split(/\s+/).filter(Boolean).slice(-n).join(' ')
+}
+
+export function firstWords(text: string, n: number): string {
+  return text.trim().split(/\s+/).filter(Boolean).slice(0, n).join(' ')
+}
+
+/** Truncates to `n` words, appending an ellipsis if anything was cut. */
+export function truncateWords(text: string, n: number): string {
+  const words = text.trim().split(/\s+/).filter(Boolean)
+  return words.length <= n ? text.trim() : words.slice(0, n).join(' ') + '…'
+}
+
 function demo() {
   const a = { id: 'a', cfi: 'epubcfi(/6/4!/4/2,/1:0,/1:5)', color: '#a', note: null }
   const b = { id: 'b', cfi: 'epubcfi(/6/4!/4/2,/1:3,/1:10)', color: '#b', note: 'note-b' }
@@ -95,6 +111,12 @@ function demo() {
     'merge: a 3-way overlap collapses to one, spanning the widest existing edges',
   )
   console.assert(wide.note === 'note-b\n\nnote-c', 'merge: a null new note still keeps the absorbed ones')
+
+  console.assert(lastWords('the quick brown fox', 2) === 'brown fox', 'lastWords: takes the trailing N words')
+  console.assert(lastWords('  fox  ', 2) === 'fox', 'lastWords: fewer words than N returns what there is')
+  console.assert(firstWords('the quick brown fox', 2) === 'the quick', 'firstWords: takes the leading N words')
+  console.assert(truncateWords('one two three', 5) === 'one two three', 'truncateWords: no-op under the limit')
+  console.assert(truncateWords('one two three', 2) === 'one two…', 'truncateWords: cuts and marks it with an ellipsis')
 
   console.log('annotations.ts: all checks passed')
 }

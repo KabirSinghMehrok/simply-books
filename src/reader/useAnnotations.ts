@@ -7,8 +7,49 @@ import {
   listAnnotations,
   putAnnotation,
 } from '../library/db'
-import { findOverlapping, planMerge } from './annotations'
+import { findOverlapping, lastWords, planMerge, firstWords } from './annotations'
 import { frameOffset } from './interactions'
+
+const CONTEXT_WORDS = 2
+// Bounds how many text nodes to hop across (skipping inline markup like
+// <em>/footnote markers) before giving up on finding CONTEXT_WORDS -- cheap
+// either way, just a sanity cap against a pathological document.
+const CONTEXT_NODE_HOPS = 6
+
+/**
+ * A word or two immediately before/after a highlight, for the highlights
+ * panel. Walks the section doc's own text nodes in document order via
+ * TreeWalker -- same primitive foliate-js's own text-walker.js builds on --
+ * so a highlight starting/ending right at an inline element boundary (an
+ * <em>, a footnote marker) still finds real context on the other side of it
+ * instead of stopping dead at the empty remainder of one text node.
+ */
+function surroundingWords(doc: Document, range: Range): { before: string; after: string } {
+  return {
+    before: lastWords(collectContext(doc, range.startContainer, range.startOffset, -1), CONTEXT_WORDS),
+    after: firstWords(collectContext(doc, range.endContainer, range.endOffset, 1), CONTEXT_WORDS),
+  }
+}
+
+function collectContext(doc: Document, container: Node, offset: number, dir: -1 | 1): string {
+  // A Range boundary is occasionally an Element (offset = a child index)
+  // rather than a Text node -- only possible at an edge a selection rarely
+  // produces. Not worth resolving; the panel just shows no context there.
+  if (container.nodeType !== Node.TEXT_NODE) return ''
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT)
+  walker.currentNode = container
+  const text = container.textContent ?? ''
+  const pieces = [dir < 0 ? text.slice(0, offset) : text.slice(offset)]
+  for (let hop = 0; hop < CONTEXT_NODE_HOPS; hop++) {
+    const wordCount = pieces.join(' ').trim().split(/\s+/).filter(Boolean).length
+    if (wordCount >= CONTEXT_WORDS) break
+    const next = dir < 0 ? walker.previousNode() : walker.nextNode()
+    if (!next) break
+    if (dir < 0) pieces.unshift(next.textContent ?? '')
+    else pieces.push(next.textContent ?? '')
+  }
+  return pieces.join(' ')
+}
 
 export interface NoteMarker {
   id: string
@@ -77,13 +118,13 @@ export function useAnnotations(bookId: string) {
   ): Promise<void> {
     const newCfi = view.getCFI(index, range)
     const overlapping = findOverlapping(ref.current, newCfi)
+    const doc = range.startContainer.ownerDocument
 
     let cfi = newCfi
-    let text = range.toString()
+    let finalRange = range
     let mergedNote = note
     if (overlapping.length) {
       const plan = planMerge(overlapping, newCfi, note)
-      const doc = range.startContainer.ownerDocument
       if (doc) {
         const start = view.resolveCFI(CFI.collapse(plan.startBoundaryCfi)).anchor(doc)
         const end = view.resolveCFI(CFI.collapse(plan.endBoundaryCfi, true)).anchor(doc)
@@ -91,7 +132,7 @@ export function useAnnotations(bookId: string) {
         merged.setStart(start.startContainer, start.startOffset)
         merged.setEnd(end.endContainer, end.endOffset)
         cfi = view.getCFI(index, merged)
-        text = merged.toString()
+        finalRange = merged
       }
       mergedNote = plan.note
       for (const old of overlapping) {
@@ -100,12 +141,15 @@ export function useAnnotations(bookId: string) {
       }
     }
 
+    const context = doc ? surroundingWords(doc, finalRange) : { before: '', after: '' }
     const now = Date.now()
     const record: AnnotationRecord = {
       id: crypto.randomUUID(),
       bookId,
       cfi,
-      text,
+      text: finalRange.toString(),
+      contextBefore: context.before,
+      contextAfter: context.after,
       color,
       note: mergedNote,
       createdAt: now,
