@@ -64,6 +64,13 @@ export interface Tts {
   from(range: Range): string | undefined
   setMark(name: string): void
 }
+/** One matcher hit, split into non-matching context and the matched text. */
+export interface SearchExcerpt { pre: string; match: string; post: string }
+export interface SearchMatch { cfi: string; excerpt: SearchExcerpt }
+/** `view.search()`'s per-yield shape: a book-wide scan progress tick, or a
+ * section's matches (only yielded for sections that had at least one). */
+export type SearchResult = { progress: number } | { label: string; subitems: SearchMatch[] }
+
 export interface Renderer extends HTMLElement {
   scrollToAnchor(target: Range | Element | number, select?: boolean): void
   /** The loaded section(s) -- one entry in paginated mode, [] before load. */
@@ -115,4 +122,9 @@ export interface FoliateView extends HTMLElement {
     remove?: boolean,
   ): Promise<{ index: number; label: string } | undefined>
   deleteAnnotation(annotation: { value: string }): Promise<{ index: number; label: string } | undefined>
+  /** Whole-book search (omit `index`) or one section's (pass it). Draws its
+   * own outline overlay per match as results come in -- see clearSearch. */
+  search(opts: { query: string; matchCase?: boolean; index?: number }): AsyncGenerator<SearchResult | 'done'>
+  /** Un-draws every match overlay from the last search() call. */
+  clearSearch(): void
 }

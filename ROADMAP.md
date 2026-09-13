@@ -1,5 +1,19 @@
 # Roadmap
 
+## Status: v1 Phase E shipped
+
+- In-book search: a search bar (chrome top bar, new search icon) built
+  directly on foliate-js's own `view.search()`/`clearSearch()` -- it already
+  walks every section, matches, draws an outline overlay per hit, and
+  removes them again, so this feature needed no new highlight-drawing code
+  of its own
+- Live match count ("x of y"), next/previous buttons that jump between
+  matches (wrapping at either end), and a case-sensitivity toggle -- typing
+  is debounced 300ms before a search actually runs, since it re-scans the
+  whole book every time
+- Enter/Shift+Enter in the search input cycle next/previous without
+  reaching for the mouse; Escape closes the bar
+
 ## Status: v1 Phase D shipped
 
 - Piper as an opt-in natural voice: a `SpeechEngine` abstraction shared with
@@ -397,6 +411,27 @@ it's the only neural option that also runs acceptably on mobile.
   `setStart`/`setEnd`, re-deriving the final CFI via `view.getCFI()`. The
   decision logic has no DOM dependency and is Node-testable
   (`annotations.ts`'s `demo()`); the Range-building step does and isn't.
+- **`view.search()`'s case-sensitivity option is `matchCase: boolean`, not a
+  `sensitivity` string.** `search.js`'s exported `searchMatcher` reads
+  `opts.matchCase`/`matchDiacritics`/`matchWholeWords` and derives an
+  `Intl.Collator` `sensitivity` internally ('base' by default, 'case' for
+  `matchCase: true` with diacritics left alone) -- it never reads a
+  `sensitivity` field passed in directly. `simpleSearch`'s own fallback
+  path (used only when `Intl.Segmenter` is unavailable) checks
+  `sensitivity === 'variant'`, which is a different value than what
+  `searchMatcher` ever actually produces for a case-sensitive query; reading
+  only that inner function and assuming `{ sensitivity: 'variant' }` was
+  the public option would have silently searched case-insensitively no
+  matter what the toggle said. `Search.tsx` passes `matchCase` straight
+  through, matching `searchMatcher`'s real signature.
+- **`view.search()` already draws its own match overlay (`Overlayer.outline`)
+  and `clearSearch()` already un-draws it** -- both keyed by a
+  `foliate-search:`-prefixed CFI in the same annotation map real highlights
+  use, but entirely separate from `useAnnotations`'s persisted ones. No
+  redraw-on-navigation code was needed the way persisted highlights needed
+  it (see below): search results are transient for the life of one query,
+  not saved, and `clearSearch()` is called both when the query is emptied
+  and when the search bar closes/unmounts.
 - **A note's floating indicator has to be recomputed on every page turn,
   not cached from when the highlight was drawn.** This one isn't in the
   plan: a section's iframe is viewport-sized, but paginated mode pans its
@@ -436,8 +471,7 @@ browser with a real book before it's believed.
 
 ## What's left
 
-### v1 — Phases A, B and D shipped, rest not started
-- In-book search
+### v1 — Phases A, B, D and E shipped, rest not started
 - Web app manifest, for iOS lock-screen audio parity — a plain Safari tab
   still pauses on screen lock; only an installed PWA doesn't
 - Mobile layout polish (single-column is automatic via CSS container

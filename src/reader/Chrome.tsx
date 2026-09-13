@@ -1,4 +1,4 @@
-import { List, Pause, Play, RotateCcw, Settings, SkipBack, SkipForward, X } from 'lucide-react'
+import { List, Pause, Play, RotateCcw, Search, Settings, SkipBack, SkipForward, X } from 'lucide-react'
 import type { FoliateView } from 'foliate-js/view.js'
 import type { useTtsDriver } from '../tts/driver'
 import { flatten } from '../library/meta'
@@ -9,10 +9,11 @@ interface ChromeProps {
   tts: ReturnType<typeof useTtsDriver>
   visible: boolean
   onToggleToc: () => void
+  onToggleSearch: () => void
   onClose: () => void
 }
 
-export function Chrome({ view, tts, visible, onToggleToc, onClose }: ChromeProps) {
+export function Chrome({ view, tts, visible, onToggleToc, onToggleSearch, onClose }: ChromeProps) {
   const title = flatten(view.book.metadata.title) || 'Untitled'
 
   return (
@@ -22,6 +23,9 @@ export function Chrome({ view, tts, visible, onToggleToc, onClose }: ChromeProps
           <List size={18} />
         </button>
         <div className="chrome__title">{title}</div>
+        <button className="chrome__icon" onClick={onToggleSearch} aria-label="Search in book">
+          <Search size={18} />
+        </button>
         <button className="chrome__icon" onClick={onClose} aria-label="Back to library">
           <X size={18} />
         </button>
