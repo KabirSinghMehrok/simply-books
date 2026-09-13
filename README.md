@@ -30,8 +30,14 @@ static files.
   (independent of where playback last stopped)
 - Lock-screen / notification playback controls (Media Session) — play,
   pause, and skip from outside the browser tab
-- A reading progress rail you can click to jump to any point in the book
+- A reading progress rail you can click to jump to any point in the book —
+  a vertical strip on desktop, a horizontal line above the bottom bar on
+  narrow/mobile screens
 - Resumes exactly where you left off after a refresh
+- Chrome reflows below 700px width so every control stays reachable with
+  one thumb: two bars (title+close on top; contents/highlights, playback,
+  and search/settings each in their own corner of the bottom bar) instead
+  of one
 - Highlights (4 colors) and notes — select text for a color/note toolbar,
   overlapping highlights merge (new color wins, notes concatenate), and
   highlights survive navigating away and back

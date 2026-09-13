@@ -15,6 +15,21 @@ import { useFoliate } from './useFoliate'
 import './Reader.css'
 
 const IDLE_MS = 2500
+// Below this width, one thumb can't reach every corner of a single bar --
+// Chrome/Rail split into the two-bar, three-corner mobile layout instead.
+const MOBILE_BREAKPOINT = 700
+
+function useIsMobile(breakpoint: number): boolean {
+  const query = `(max-width: ${breakpoint}px)`
+  const [isMobile, setIsMobile] = useState(() => matchMedia(query).matches)
+  useEffect(() => {
+    const mql = matchMedia(query)
+    const onChange = () => setIsMobile(mql.matches)
+    mql.addEventListener('change', onChange)
+    return () => mql.removeEventListener('change', onChange)
+  }, [query])
+  return isMobile
+}
 
 /** What the note editor is open for: a brand-new highlight, or an existing one. */
 type NoteTarget =
@@ -36,6 +51,7 @@ export function Reader({ bookId, settings, onUpdateSettings, onClose }: ReaderPr
   const [selection, setSelection] = useState<(SelectionInfo & { index: number }) | null>(null)
   const [noteTarget, setNoteTarget] = useState<NoteTarget | null>(null)
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const isMobile = useIsMobile(MOBILE_BREAKPOINT)
   // Read once: this doesn't need to react to the setting changing mid-session.
   const reducedMotion = useRef(
     typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -122,11 +138,12 @@ export function Reader({ bookId, settings, onUpdateSettings, onClose }: ReaderPr
       {!view && <div className="reader__loading">Opening…</div>}
       {view && (
         <>
-          <Rail view={view} location={location} />
+          <Rail view={view} location={location} isMobile={isMobile} />
           <Chrome
             view={view}
             tts={tts}
             visible={chromeVisible}
+            isMobile={isMobile}
             onToggleToc={() => setTocOpen(o => !o)}
             onToggleHighlights={() => setHighlightsOpen(o => !o)}
             onToggleSearch={() => setSearchOpen(o => !o)}

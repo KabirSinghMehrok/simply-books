@@ -1,5 +1,27 @@
 # Roadmap
 
+## Status: v1 Phase G shipped
+
+- Chrome reflows at a 700px viewport-width breakpoint so every control
+  stays reachable one-handed on a phone: below it, two bars (top: title
+  left-aligned, close top-right; bottom: contents+highlights bottom-left,
+  the playback cluster bottom-center, search+settings bottom-right) --
+  above it, one bar (contents+highlights top-left, playback + search +
+  settings + close on the right, title kept truly centered via a
+  `1fr auto 1fr` grid rather than flex `space-between`, which would drift
+  off-center once the two sides carry different icon counts)
+- The breakpoint is one `matchMedia` boolean computed in `Reader.tsx` and
+  passed down as a prop, not two parallel sets of CSS -- `Chrome.tsx`
+  renders one JSX tree or the other, so there's exactly one copy of each
+  button's markup/handler rather than a hidden duplicate per breakpoint
+- The progress rail follows the same prop: a horizontal line directly
+  above the bottom bar on mobile, the existing vertical strip along the
+  right edge on desktop (now extended to the full height below the single
+  bar, since there's no bottom bar reserving space any more). Both share
+  one `--fraction` CSS custom property rather than branching an inline
+  `style` in JS -- each breakpoint's CSS decides whether that drives
+  `width` or `height`
+
 ## Status: v1 Phase F shipped
 
 - A Highlights & Notes panel (chrome top bar, new highlighter icon next to
@@ -502,11 +524,12 @@ browser with a real book before it's believed.
 
 ## What's left
 
-### v1 — Phases A, B, D, E and F shipped, rest not started
+### v1 — Phases A, B, D, E, F and G shipped, rest not started
 - Web app manifest, for iOS lock-screen audio parity — a plain Safari tab
   still pauses on screen lock; only an installed PWA doesn't
-- Mobile layout polish (single-column is automatic via CSS container
-  queries; touch target sizing and layout polish are not done)
+- Mobile layout polish: single-column is automatic via CSS container
+  queries, and the chrome's one-handed reachability is done (Phase G) —
+  touch target sizing (icons are still desktop-scaled) is not
 
 ### Known Phase B gaps (deliberate, not oversights)
 - No UI to remove a highlight that has no note — only note-bearing

@@ -1,6 +1,8 @@
 /* [popover] defaults to `inset: 0; margin: auto` (screen-centered) --
    overridden here to anchor above the bottom bar it's triggered from
-   (44px bar + 8px) instead. */
+   (44px bar + 8px) instead. Above MOBILE_BREAKPOINT (Reader.tsx) there is
+   no bottom bar -- the trigger lives in the single top bar instead, so the
+   panel anchors below that (same 44px + 8px) rather than above nothing. */
 .settings-panel {
   position: fixed;
   inset: auto;
@@ -21,6 +23,13 @@
      .chrome -- inherits its `pointer-events: none`, so it must be undone
      here or none of these controls would be clickable. */
   pointer-events: auto;
+}
+
+@media (min-width: 701px) {
+  .settings-panel {
+    top: 52px;
+    bottom: auto;
+  }
 }
 
 .settings-panel__group {

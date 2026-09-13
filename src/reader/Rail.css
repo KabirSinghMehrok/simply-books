@@ -1,7 +1,9 @@
+/* Laptop default: vertical strip along the right edge, full height below
+   the single top bar (no bottom bar reserves space in this mode). */
 .rail {
   position: absolute;
   top: 44px;
-  bottom: 44px;
+  bottom: 0;
   right: 0;
   width: 8px;
   cursor: pointer;
@@ -24,4 +26,31 @@
   width: 3px;
   margin: 0 auto;
   background: var(--accent);
+  height: calc(var(--fraction, 0) * 100%);
+}
+
+/* Mobile: a horizontal line directly above the bottom bar instead. */
+.rail--horizontal {
+  top: auto;
+  bottom: 44px;
+  left: 0;
+  right: 0;
+  width: auto;
+  height: 8px;
+}
+
+.rail--horizontal::before {
+  inset: 0;
+  width: auto;
+  height: 3px;
+  margin: auto 0;
+}
+
+.rail--horizontal .rail__fill {
+  top: 0;
+  bottom: 0;
+  right: auto;
+  width: calc(var(--fraction, 0) * 100%);
+  height: 3px;
+  margin: auto 0;
 }
